@@ -125,8 +125,9 @@ class QualityGate:
             similarity = intersection / union if union > 0 else 0
             if similarity > max_similarity: max_similarity = similarity
         return max_similarity
-    def _check_alignment(self, hypothesis: str, factor_expression: str) -> float:
-        prompt = f"""다음 '가설'과 '팩터 수식'의 논리적 일치도를 0.0에서 1.0 사이의 점수로만 평가해줘.
+    # 이 함수 전체를 복사해서 기존 함수와 완전히 바꿔주세요.
+def _check_alignment(self, hypothesis: str, factor_expression: str) -> float:
+    prompt = f"""다음 '가설'과 '팩터 수식'의 논리적 일치도를 0.0에서 1.0 사이의 점수로만 평가해줘.
 - 가설: "{hypothesis}"
 - 팩터 수식: "{factor_expression}"
 """
@@ -136,6 +137,7 @@ class QualityGate:
     except Exception as e:
         logging.error(f"정합성 평가 API 호출 오류: {e}")
         return 0.0
+
 
 
 # --- 4. Streamlit UI 구성 (수정 없음, 기존 코드와 동일) ---
@@ -250,6 +252,7 @@ if st.session_state.analysis_done:
             else:
                 st.markdown(f"--- \n**[실패] 반복 #{log['iteration']}**")
                 st.error(f"오류: {log['error']}")
+
 
 
 
