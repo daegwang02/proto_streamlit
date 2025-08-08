@@ -217,7 +217,8 @@ def generate_seed_from_user_idea(user_input: str) -> str:
 # [수정된 부분 2/2] 데이터 파일 이름을 .parquet으로 변경했습니다.
 # ===================================================================================
 # --- 3. 데이터 로딩 (앱 시작 시 한 번만 실행) ---
-pivoted_data = load_pivoted_data("ohlcv_data.parquet")
+# --- 3. 데이터 로딩 (앱 시작 시 한 번만 실행) ---
+pivoted_data = load_pivoted_data("ai/ohlcv_data.parquet")
 if pivoted_data:
     pivoted_data = prepare_base_features(pivoted_data)
 else:
@@ -337,4 +338,5 @@ if st.session_state.analysis_done:
             else:
                 st.markdown(f"--- \n**[실패] 반복 #{log['iteration']}**")
                 st.error(f"오류: {log['error']}")
+
 
