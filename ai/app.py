@@ -126,7 +126,7 @@ class QualityGate:
             if similarity > max_similarity: max_similarity = similarity
         return max_similarity
     def _check_alignment(self, hypothesis: str, factor_expression: str) -> float:
-    prompt = f"""다음 '가설'과 '팩터 수식'의 논리적 일치도를 0.0에서 1.0 사이의 점수로만 평가해줘.
+        prompt = f"""다음 '가설'과 '팩터 수식'의 논리적 일치도를 0.0에서 1.0 사이의 점수로만 평가해줘.
 - 가설: "{hypothesis}"
 - 팩터 수식: "{factor_expression}"
 """
@@ -250,6 +250,7 @@ if st.session_state.analysis_done:
             else:
                 st.markdown(f"--- \n**[실패] 반복 #{log['iteration']}**")
                 st.error(f"오류: {log['error']}")
+
 
 
 
