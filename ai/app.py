@@ -34,17 +34,17 @@ except (KeyError, FileNotFoundError):
 # 이 부분은 사용자님의 원본 코드를 그대로 유지합니다.
 
 # ===================================================================================
-# [수정된 부분 1/2] 데이터 로딩 함수를 훨씬 더 간단하고 효율적으로 변경했습니다.
+# [수정된 부분 1/2] 데이터 로딩 함수를 Parquet 파일용으로 변경했습니다.
 # ===================================================================================
 @st.cache_data(ttl=3600) # 데이터 로딩 결과를 1시간 동안 캐싱
 def load_pivoted_data(file_path: str):
     """
-    프로젝트 폴더 내에 있는 단일 데이터 파일(CSV)을 읽어 피벗 데이터로 변환합니다.
+    프로젝트 폴더 내에 있는 단일 데이터 파일(Parquet)을 읽어 피벗 데이터로 변환합니다.
     """
     logging.info(f"데이터 파일 로딩 시작: {file_path}")
     try:
-        # GitHub에 함께 올린 CSV 파일을 직접 읽습니다.
-        df = pd.read_csv(file_path)
+        # [변경] pd.read_csv 대신 pd.read_parquet을 사용하여 Parquet 파일을 읽습니다.
+        df = pd.read_parquet(file_path)
     except FileNotFoundError:
         st.error(f"데이터 파일 '{file_path}'을(를) 찾을 수 없습니다. app.py와 같은 폴더에 파일이 있는지, GitHub에 함께 업로드했는지 확인해주세요.")
         return None
@@ -214,10 +214,10 @@ def generate_seed_from_user_idea(user_input: str) -> str:
     return response.choices[0].message.content.strip()
 
 # ===================================================================================
-# [수정된 부분 2/2] 절대 경로 대신, 파일 이름을 직접 전달하도록 변경했습니다.
+# [수정된 부분 2/2] 데이터 파일 이름을 .parquet으로 변경했습니다.
 # ===================================================================================
 # --- 3. 데이터 로딩 (앱 시작 시 한 번만 실행) ---
-pivoted_data = load_pivoted_data("ohlcv_data.csv")
+pivoted_data = load_pivoted_data("ohlcv_data.parquet")
 if pivoted_data:
     pivoted_data = prepare_base_features(pivoted_data)
 else:
@@ -337,3 +337,4 @@ if st.session_state.analysis_done:
             else:
                 st.markdown(f"--- \n**[실패] 반복 #{log['iteration']}**")
                 st.error(f"오류: {log['error']}")
+
