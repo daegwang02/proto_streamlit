@@ -19,8 +19,8 @@ import config
 # --- 3. Streamlit 페이지 설정 및 디자인 적용 ---
 # KB금융그룹 브랜드 아이덴티티 반영 (노란색 강조색)
 st.set_page_config(
-    page_title="AlphaAgent: KB 금융 AI 투자 전략 탐색기", 
-    page_icon="🤖", 
+    page_title="AlphaAgent: KB 금융 AI 투자 전략 탐색기",
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -101,9 +101,7 @@ if 'best_factor_info' not in st.session_state:
 # --- 5. 사이드바 (설정) ---
 with st.sidebar:
     st.header("⚙️ 설정")
-
-    # API 키 입력 UI (보안을 위해 텍스트 입력창으로 받음)
-    #llm_api_key = st.text_input("Google Gemini API 키를 입력하세요.", type="password")
+    st.info("API 키는 `config.py` 또는 `.streamlit/secrets.toml`에 설정되어야 합니다.")
 
     # 외부 지식 입력 UI
     external_knowledge = st.text_area(
@@ -126,9 +124,7 @@ with st.sidebar:
     # 분석 시작 버튼
     start_button = st.button("✨ 분석 시작!")
     st.markdown("---")
-    st.info("시작하기 전에 API 키와 데이터 URL이 올바르게 설정되었는지 확인해주세요.")
-    st.markdown("데이터 파일 URL: `config.py` 파일의 `KOR_STOCK_DATA_URL`")
-    st.markdown("API 키: 위 입력창 또는 `.streamlit/secrets.toml`")
+    st.info("데이터 파일 URL: `config.py` 파일의 `KOR_STOCK_DATA_URL`")
 
 
 # --- 6. 메인 화면 (분석 실행 및 결과 표시) ---
@@ -141,10 +137,13 @@ user_idea = st.text_area(
 
 # 분석 시작 버튼이 눌렸을 때 전체 워크플로우 실행
 if start_button:
-    # ⚠️ API 키 유효성 검사 로직을 간소화
+    # 세션 상태 초기화 (재분석 시)
+    st.session_state.final_report = None
+    st.session_state.best_factor_info = None
+
+    # 1. 에이전트 및 클라이언트 초기화
     try:
         # config.py의 GOOGLE_API_KEY를 직접 사용합니다.
-        # 이전에 제공해 드렸던 llm_api_key 변수는 이제 사용하지 않습니다.
         llm_client = LLMClient(api_key=config.GOOGLE_API_KEY)
         db_client = DatabaseClient()
         backtester_client = BacktesterClient(data_url=config.KOR_STOCK_DATA_URL)
@@ -163,33 +162,6 @@ if start_button:
     except (ValueError, RuntimeError) as e:
         # 키가 없거나 데이터 URL이 잘못된 경우 오류를 표시합니다.
         st.error(f"초기화 오류: {e}. `config.py` 파일의 API 키와 데이터 URL 설정을 확인해주세요.")
-        st.stop()
-    
-    # 세션 상태 초기화 (재분석 시)
-    st.session_state.final_report = None
-    st.session_state.best_factor_info = None
-    
-    # 1. 에이전트 및 클라이언트 초기화
-    try:
-        # OpenAI API 키 설정 (입력창 > config.py 순으로 우선순위를 둡니다)
-        current_api_key = llm_api_key if llm_api_key else config.GOOGLE_API_KEY
-        llm_client = LLMClient(api_key=current_api_key)
-        db_client = DatabaseClient()
-        backtester_client = BacktesterClient(data_url=config.KOR_STOCK_DATA_URL)
-        
-        # 에이전트 객체 생성
-        st.session_state.agents = {
-            'llm': llm_client,
-            'db': db_client,
-            'backtester': backtester_client,
-            'idea': IdeaAgent(llm_client, db_client),
-            'factor': FactorAgent(llm_client, db_client),
-            'eval': EvalAgent(db_client, backtester_client),
-            'advisory': AdvisoryAgent(llm_client, db_client)
-        }
-        st.session_state.db = db_client # DB 클라이언트는 별도로 저장
-    except (ValueError, RuntimeError) as e:
-        st.error(f"초기화 오류: {e}. config.py 파일과 API 키를 확인해주세요.")
         st.stop()
 
     # 2. 하이퍼파라미터 최적화 (선택 사항)
@@ -299,4 +271,3 @@ with st.expander("🔍 전체 분석 과정 로그 보기"):
     st.dataframe(st.session_state.db.hypotheses if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.factors if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.evaluations if st.session_state.db else pd.DataFrame(), use_container_width=True)
-
