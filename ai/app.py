@@ -126,14 +126,16 @@ class QualityGate:
             if similarity > max_similarity: max_similarity = similarity
         return max_similarity
     def _check_alignment(self, hypothesis: str, factor_expression: str) -> float:
-        prompt = f"다음 '가설'과 '팩터 수식'의 논리적 일치도를 0.0에서 1.0 사이의 점수로만 평가해줘.\nㅇ
-pivoted_data = load_pivoted_data("ohlcv_data.parquet")
-
-if pivoted_data:
-    pivoted_data = prepare_base_features(pivoted_data)
-else:
-    # load_pivoted_data 함수 내부에서 이미 에러 메시지를 보여주므로 st.stop()만 호출
-    st.stop()
+    prompt = f"""다음 '가설'과 '팩터 수식'의 논리적 일치도를 0.0에서 1.0 사이의 점수로만 평가해줘.
+- 가설: "{hypothesis}"
+- 팩터 수식: "{factor_expression}"
+"""
+    try:
+        response = self.client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], temperature=0.0)
+        return float(response.choices[0].message.content.strip())
+    except Exception as e:
+        logging.error(f"정합성 평가 API 호출 오류: {e}")
+        return 0.0
 
 
 # --- 4. Streamlit UI 구성 (수정 없음, 기존 코드와 동일) ---
@@ -248,6 +250,7 @@ if st.session_state.analysis_done:
             else:
                 st.markdown(f"--- \n**[실패] 반복 #{log['iteration']}**")
                 st.error(f"오류: {log['error']}")
+
 
 
 
