@@ -13,8 +13,10 @@ class LLMClient:
         """
         LLM 클라이언트를 초기화하고 API를 설정합니다.
         """
-        if not api_key or api_key == "YOUR_GOOGLE_API_KEY":
-            raise ValueError("Google API 키가 설정되지 않았습니다. config.py 파일을 확인해주세요.")
+        # --- 이 부분을 수정하세요 ---
+        # API 키가 유효한지 확인하고 설정
+        if not api_key or api_key.strip() == "" or api_key == "YOUR_GOOGLE_API_KEY":
+            raise ValueError("Google API 키가 설정되지 않았거나 비어있습니다. config.py 파일을 확인해주세요.")
             
         genai.configure(api_key=api_key)
         
@@ -208,5 +210,6 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
