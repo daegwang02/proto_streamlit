@@ -12,10 +12,11 @@ GOOGLE_API_KEY = "실제로 발급받은 API 키"
 
 # 데이터 경로 설정
 # 사용자의 깃허브에 저장된 PARQUET 파일의 Raw URL을 입력해야 합니다.
-KOR_STOCK_DATA_URL = "https://github.com/daegwang02/proto_streamlit/blob/main/ohlcv_data%20.parquet"
+KOR_STOCK_DATA_URL = "https://raw.githubusercontent.com/daegwang02/proto_streamlit/main/ohlcv_data.parquet"
 
 # 백테스팅 설정
 TRANSACTION_FEE_BUY = 0.0005   # 한국 주식 시장 매수 수수료
 TRANSACTION_FEE_SELL = 0.0015  # 한국 주식 시장 매도 수수료 + 세금
+
 
 
