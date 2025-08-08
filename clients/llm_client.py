@@ -1,339 +1,213 @@
-# app.py (최종 수정 완료 버전)
+# clients/llm_client.py
 
-import streamlit as st
-import os
-import pandas as pd
-import numpy as np
+import google.generativeai as genai
 import json
-import re
-from openai import OpenAI
-import ast
-import lightgbm as lgb
-import logging
 import time
+from typing import Dict, Any, List
 
-# --- 0. Streamlit 페이지 설정 및 로깅 ---
-st.set_page_config(page_title="AlphaAgent", page_icon="🤖", layout="wide")
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-
-# --- 1. OpenAI API 키 설정 ---
-try:
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-    logging.info("OpenAI API 키를 Streamlit secrets에서 로드했습니다.")
-except (KeyError, FileNotFoundError):
-    logging.warning("Streamlit secrets에 OPENAI_API_KEY가 없습니다. 로컬 테스트를 위해 입력을 받습니다.")
-    openai_api_key = st.text_input("OpenAI API Key를 입력하세요.", type="password", key="api_key_input")
-    if openai_api_key:
-        client = OpenAI(api_key=openai_api_key)
-    else:
-        st.info("AI 기능을 사용하려면 좌측 사이드바에서 OpenAI API 키를 입력해주세요.")
-        st.stop()
-
-# --- 2. 핵심 로직 함수 및 클래스 (수정 없음) ---
-# 이 부분은 사용자님의 원본 코드를 그대로 유지합니다.
-
-# ===================================================================================
-# [수정된 부분 1/2] 데이터 로딩 함수를 훨씬 더 간단하고 효율적으로 변경했습니다.
-# ===================================================================================
-@st.cache_data(ttl=3600) # 데이터 로딩 결과를 1시간 동안 캐싱
-def load_pivoted_data(file_path: str):
+class LLMClient:
     """
-    프로젝트 폴더 내에 있는 단일 데이터 파일(CSV)을 읽어 피벗 데이터로 변환합니다.
+    Google Gemini API와 상호작용하여 LLM의 기능을 활용하는 클라이언트입니다.
     """
-    logging.info(f"데이터 파일 로딩 시작: {file_path}")
-    try:
-        # GitHub에 함께 올린 CSV 파일을 직접 읽습니다.
-        df = pd.read_csv(file_path)
-    except FileNotFoundError:
-        st.error(f"데이터 파일 '{file_path}'을(를) 찾을 수 없습니다. app.py와 같은 폴더에 파일이 있는지, GitHub에 함께 업로드했는지 확인해주세요.")
-        return None
+    def __init__(self, api_key: str):
+        """
+        LLM 클라이언트를 초기화하고 API를 설정합니다.
 
-    # 데이터 전처리 (파일에 '날짜' 컬럼이 없는 경우를 대비하여 이름 변경)
-    if '날짜' in df.columns:
-        df = df.rename(columns={'날짜': 'date'})
+        Args:
+            api_key (str): Google AI Studio에서 발급받은 API 키입니다.
+        """
+        if not api_key or api_key == "YOUR_GOOGLE_API_KEY":
+            raise ValueError("Google API 키가 설정되지 않았습니다. config.py 파일을 확인해주세요.")
+            
+        genai.configure(api_key=api_key)
         
-    df['date'] = pd.to_datetime(df['date'])
-    df = df.sort_values(by=['date', 'symbol']).reset_index(drop=True)
-    
-    pivoted_data = {}
-    # 'open', 'high', 'low', 'close', 'volume' 컬럼이 있는지 확인하고 피벗
-    for col in ['open', 'high', 'low', 'close', 'volume']:
-        if col in df.columns:
-            pivoted = df.pivot(index='date', columns='symbol', values=col)
-            pivoted_data[col] = pivoted.ffill().bfill() # 결측치 처리
-    
-    if 'close' not in pivoted_data:
-        st.error("피벗 데이터 생성에 실패했습니다. 원본 데이터에 'close'와 'symbol' 컬럼이 있는지 확인해주세요.")
-        return None
+        # 일관성 있는 출력을 위해 생성 설정을 지정합니다.
+        self.generation_config = {
+            "temperature": 0.2,
+            "top_p": 1.0,
+            "top_k": 32,
+            "max_output_tokens": 4096,
+        }
         
-    logging.info(f"📊 총 {len(pivoted_data['close'].columns)}개 종목의 피벗 데이터 로딩 완료")
-    return pivoted_data
+        # 사용할 모델을 지정합니다.
+        self.model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
+            generation_config=self.generation_config
+        )
 
-# (OPERATORS, execute_expression, prepare_base_features, AlphaZoo, QualityGate 등 모든 핵심 함수/클래스 그대로 붙여넣기)
-OPERATORS = {'ts_mean': lambda df, window: df.rolling(window, min_periods=max(1, window//2)).mean(),'ts_std': lambda df, window: df.rolling(window, min_periods=max(1, window//2)).std(),'ts_rank': lambda df, window: df.rolling(window, min_periods=max(1, window//2)).rank(pct=True),'delay': lambda df, period: df.shift(period),'delta': lambda df, period: df.diff(period),'rank': lambda df: df.rank(axis=1, pct=True),'scale': lambda df: df.div(df.abs().sum(axis=1), axis=0),'add': lambda a, b: a + b,'subtract': lambda a, b: a - b,'multiply': lambda a, b: a * b,'divide': lambda a, b: a / b.replace(0, np.nan),'negate': lambda a: -a,'abs': lambda a: a.abs()}
-def execute_expression(expression: str, data: dict):
-    local_data = {k: v.copy() for k, v in data.items()}
-    while '(' in expression:
-        match = re.search(r"(\w+)\(([^()]+)\)", expression)
-        if not match:
-            if expression in local_data: return local_data[expression]
-            raise ValueError(f"잘못된 수식 형식: {expression}")
-        op_name, args_str = match.groups()
-        args = [arg.strip() for arg in args_str.split(',')]
-        evaluated_args = []
-        for arg in args:
-            if arg.isdigit(): evaluated_args.append(int(arg))
-            elif arg in local_data: evaluated_args.append(local_data[arg])
-            else: raise ValueError(f"알 수 없는 인자 '{arg}' (수식: {expression})")
-        if op_name in OPERATORS:
-            temp_var_name = f"temp_{abs(hash(match.group(0)))}"
-            local_data[temp_var_name] = OPERATORS[op_name](*evaluated_args)
-            expression = expression.replace(match.group(0), temp_var_name, 1)
-        else: raise ValueError(f"알 수 없는 연산자: {op_name}")
-    if expression in local_data: return local_data[expression]
-    else: raise ValueError("최종 결과를 찾을 수 없습니다.")
+    def _send_request(self, prompt: str, retries=3, delay=5) -> str:
+        """
+        주어진 프롬프트를 API에 전송하고, 재시도 로직을 포함하여 응답을 받습니다.
 
-def prepare_base_features(pivoted_data: dict) -> dict:
-    logging.info("... 기본 팩터(Base Features) 생성 중 ...")
-    data_copy = {k: v.copy() for k, v in pivoted_data.items()}
-    pivoted_data['base_1'] = execute_expression("divide(subtract(close, open), open)", data_copy)
-    pivoted_data['base_2'] = execute_expression("subtract(divide(close, delay(close, 1)), 1)", data_copy)
-    pivoted_data['base_3'] = execute_expression("divide(volume, ts_mean(volume, 20))", data_copy)
-    pivoted_data['base_4'] = execute_expression("divide(subtract(high, low), close)", data_copy)
-    logging.info("✅ 기본 팩터 4개 생성 완료.")
-    return pivoted_data
-    
-class AlphaZoo:
-    def __init__(self): self.known_factors = {"ts_mean(close, 20)", "ts_std(close, 20)", "rank(volume)"}
-    def add_factor(self, expression: str): self.known_factors.add(expression)
-    def get_all_factors(self) -> set: return self.known_factors
+        Args:
+            prompt (str): LLM에 전달할 전체 프롬프트 문자열입니다.
+            retries (int): API 호출 실패 시 재시도 횟수입니다.
+            delay (int): 재시도 간 대기 시간 (초) 입니다.
 
-class QualityGate:
-    def __init__(self, alpha_zoo: AlphaZoo, client: OpenAI):
-        self.alpha_zoo, self.client = alpha_zoo, client
-        self.COMPLEXITY_THRESHOLD, self.ORIGINALITY_THRESHOLD, self.ALIGNMENT_THRESHOLD = 15, 0.9, 0.6
-    def _calculate_complexity(self, expression: str) -> int:
-        try: return sum(1 for node in ast.walk(ast.parse(expression)) if isinstance(node, (ast.Call, ast.Num, ast.Constant)))
-        except: return float('inf')
-    def _calculate_originality(self, expression: str) -> float:
-        new_ops, max_similarity = set(re.findall(r'(\w+)\(', expression)), 0
-        for known_expr in self.alpha_zoo.get_all_factors():
-            known_ops = set(re.findall(r'(\w+)\(', known_expr))
-            if not new_ops and not known_ops: continue
-            intersection, union = len(new_ops.intersection(known_ops)), len(new_ops.union(known_ops))
-            similarity = intersection / union if union > 0 else 0
-            if similarity > max_similarity: max_similarity = similarity
-        return max_similarity
-    def _check_alignment(self, hypothesis: str, factor_expression: str) -> float:
-        prompt = f"다음 '가설'과 '팩터 수식'의 논리적 일치도를 0.0에서 1.0 사이의 점수로만 평가해줘.\n- 가설: \"{hypothesis}\"\n- 팩터 수식: \"{factor_expression}\""
-        try:
-            response = self.client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], temperature=0.0)
-            return float(response.choices[0].message.content.strip())
-        except Exception as e:
-            logging.error(f"정합성 평가 API 호출 오류: {e}")
-            return 0.0
-    def validate(self, hypothesis: str, factor: dict) -> (bool, str):
-        expression = factor['expression']
-        complexity = self._calculate_complexity(expression)
-        if complexity > self.COMPLEXITY_THRESHOLD: return False, f"복잡도 초과 ({complexity}/{self.COMPLEXITY_THRESHOLD})"
-        similarity = self._calculate_originality(expression)
-        if similarity > self.ORIGINALITY_THRESHOLD: return False, f"독창성 부족 (유사도 {similarity:.2f})"
-        alignment_score = self._check_alignment(hypothesis, expression)
-        if alignment_score < self.ALIGNMENT_THRESHOLD: return False, f"정합성 부족 (점수 {alignment_score:.2f})"
-        return True, "품질 검사 통과"
-
-def generate_market_hypothesis(seed: str, feedback_history: list) -> str:
-    system_prompt = "당신은 주식 시장을 분석하는 퀀트 분석가입니다. 주어진 테마나 이전의 성공/실패 경험을 바탕으로, 검증 가능한 새로운 정량적 투자 가설을 한 문장으로 생성해주세요."
-    user_content = f"테마: {seed}"
-    if feedback_history:
-        recent_feedback = "\n".join(feedback_history[-3:])
-        user_content += f"\n\n이전 시도에 대한 피드백입니다:\n{recent_feedback}\n\n이 피드백을 바탕으로 기존 아이디어를 개선하거나 완전히 새로운 방향의 가설을 제시해주세요."
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], temperature=0.7)
-    return response.choices[0].message.content.strip()
-
-def generate_alpha_expression(hypothesis: str) -> dict:
-    available_ops = ", ".join(OPERATORS.keys())
-    system_prompt = f"너는 알파 팩터 생성 AI야. 반드시 아래 JSON 형식과 주어진 표준 연산자만을 사용해야 한다.\n{{ \"description\": \"...\", \"expression\": \"...\" }}\n---\n[사용 가능 연산자] {available_ops}\n[사용 가능 데이터] open, high, low, close, volume\n[규칙] 함수 형태로 작성. 예: rank(subtract(ts_mean(close, 20), ts_mean(close, 60)))\n---"
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": f"가설: {hypothesis}"}], temperature=0.2)
-    raw_response = response.choices[0].message.content.strip()
-    match = re.search(r'\{.*\}', raw_response, re.DOTALL)
-    if match: return json.loads(match.group(0))
-    else: raise ValueError(f"JSON 파싱 오류: {raw_response}")
-
-def evaluate_factor_with_lgbm(new_factor_values: pd.DataFrame, data: dict):
-    LOOKBACK_WINDOW = 252
-    feature_names = ['base_1', 'base_2', 'base_3', 'base_4']
-    features = {name: data[name] for name in feature_names}
-    features['new_factor'] = new_factor_values
-    feature_dfs = [df.stack().rename(name) for name, df in features.items()]
-    master_df = pd.concat(feature_dfs, axis=1)
-    target = data['close'].pct_change().shift(-1).stack().rename('target')
-    master_df = master_df.join(target, how='inner').dropna()
-    if master_df.empty: return {'success': False, 'error': '피처와 타겟 결합 후 데이터가 없습니다.'}
-    all_predictions = []
-    unique_dates = master_df.index.get_level_values('date').unique().sort_values()
-    
-    progress_bar = st.progress(0, text="모델 백테스팅 진행 중...")
-    
-    for i in range(LOOKBACK_WINDOW, len(unique_dates)):
-        train_start_date, train_end_date, test_date = unique_dates[i - LOOKBACK_WINDOW], unique_dates[i - 1], unique_dates[i]
-        train_slice, test_slice = master_df.loc[train_start_date:train_end_date], master_df.loc[test_date:test_date]
-        if train_slice.empty or test_slice.empty: continue
-        X_train, y_train = train_slice.drop('target', axis=1), train_slice['target']
-        X_test, y_test = test_slice.drop('target', axis=1), test_slice['target']
-        lgbm = lgb.LGBMRegressor(random_state=42, n_jobs=-1, n_estimators=100)
-        lgbm.fit(X_train, y_train, eval_set=[(X_test, y_test)], callbacks=[lgb.early_stopping(5, verbose=False)])
-        predictions = pd.Series(lgbm.predict(X_test), index=X_test.index)
-        all_predictions.append(predictions)
-        
-        progress_bar.progress((i - LOOKBACK_WINDOW + 1) / (len(unique_dates) - LOOKBACK_WINDOW), text=f"모델 백테스팅 진행 중... ({test_date.strftime('%Y-%m-%d')})")
-
-    progress_bar.empty()
-        
-    if not all_predictions: return {'success': False, 'error': '롤링 예측 결과가 없습니다.'}
-    alpha_scores = pd.concat(all_predictions).unstack()
-    future_returns = data['close'].pct_change().shift(-1)
-    aligned_scores, aligned_returns = alpha_scores.align(future_returns, join='inner')
-    if aligned_scores.empty: return {'success': False, 'error': '모델 예측값과 수익률 정렬 실패.'}
-    long_mask, short_mask = aligned_scores.rank(axis=1, pct=True) > 0.8, aligned_scores.rank(axis=1, pct=True) < 0.2
-    long_returns, short_returns = aligned_returns[long_mask].mean(axis=1), aligned_returns[short_mask].mean(axis=1)
-    strategy_returns = long_returns - short_returns
-    sharpe_ratio = strategy_returns.mean() / strategy_returns.std() * np.sqrt(252) if strategy_returns.std() > 0 else 0
-    annual_return = strategy_returns.mean() * 252
-    cumulative_returns = (1 + strategy_returns).cumprod()
-    mdd = (cumulative_returns.cummax() - cumulative_returns).max()
-    return {'success': True, 'sharpe_ratio': sharpe_ratio, 'annual_return': annual_return, 'mdd': mdd, 'cumulative_returns': cumulative_returns}
-
-def generate_seed_from_user_idea(user_input: str) -> str:
-    system_prompt = """
-    당신은 월스트리트의 최고 퀀트 분석가이자, 초보 투자자들이 아이디어를 구체화하도록 돕는 친절한 어드바이저입니다.
-    사용자의 대화나 단편적인 아이디어에서 핵심을 파악하여, AlphaAgent가 사용할 수 있는 정량적 투자 '시드(seed) 가설'을 한 문장으로 정제해야 합니다.
-    """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_input}], temperature=0.1)
-    return response.choices[0].message.content.strip()
-
-# ===================================================================================
-# [수정된 부분 2/2] 절대 경로 대신, 파일 이름을 직접 전달하도록 변경했습니다.
-# ===================================================================================
-# --- 3. 데이터 로딩 (앱 시작 시 한 번만 실행) ---
-pivoted_data = load_pivoted_data("ohlcv_data.csv")
-if pivoted_data:
-    pivoted_data = prepare_base_features(pivoted_data)
-else:
-    # load_pivoted_data 함수 내부에서 이미 에러 메시지를 보여주므로 st.stop()만 호출
-    st.stop()
-
-
-# --- 4. Streamlit UI 구성 (수정 없음, 기존 코드와 동일) ---
-st.title("🤖 AlphaAgent: 나만의 투자 전략 자동 탐색")
-st.markdown("아이디어를 입력하면, AI가 자율적으로 분석하여 최적의 투자 팩터(Alpha Factor)를 찾아드립니다.")
-
-if 'best_factor' not in st.session_state:
-    st.session_state.best_factor = {'sharpe': -np.inf}
-if 'log_messages' not in st.session_state:
-    st.session_state.log_messages = []
-if 'analysis_done' not in st.session_state:
-    st.session_state.analysis_done = False
-
-st.subheader("1. 아이디어 입력 및 설정")
-with st.form("input_form"):
-    user_idea = st.text_area("어떤 투자 전략을 찾아볼까요?", "조용하던 주식이 갑자기 확 튀는 현상", height=100)
-    num_iterations = st.number_input("몇 번의 시도를 통해 전략을 개선할까요?", min_value=1, max_value=20, value=5)
-    start_button = st.form_submit_button("✨ 자율 분석 시작!")
-
-if start_button:
-    st.session_state.analysis_done = True
-    st.session_state.log_messages = []
-    st.session_state.best_factor = {'sharpe': -np.inf}
-
-    with st.status("1. AI가 아이디어를 전문가 수준의 가설로 다듬는 중...", expanded=True) as status:
-        try:
-            refined_seed = generate_seed_from_user_idea(user_idea)
-            st.write(f"**정제된 가설:** *{refined_seed}*")
-            status.update(label="✅ 아이디어 정제 완료!", state="complete")
-        except Exception as e:
-            st.error(f"아이디어 정제 실패: {e}")
-            st.stop()
-    
-    log_container = st.container()
-    feedback_history = []
-    alpha_zoo = AlphaZoo()
-
-    for i in range(1, num_iterations + 1):
-        with st.status(f"2. 자율 분석 진행 중... [반복 {i}/{num_iterations}]", expanded=True) as status:
+        Returns:
+            str: LLM의 응답 텍스트.
+        """
+        for i in range(retries):
             try:
-                hypothesis = generate_market_hypothesis(refined_seed, feedback_history)
-                st.write(f"🧠 **생성된 가설:** {hypothesis}")
-                
-                factor = generate_alpha_expression(hypothesis)
-                st.write(f"📝 **생성된 팩터:** `{factor['expression']}`")
-                
-                is_valid, reason = QualityGate(alpha_zoo, client).validate(hypothesis, factor)
-                if not is_valid:
-                    raise ValueError(f"품질 검사 실패: {reason}")
-                
-                factor_values = execute_expression(factor['expression'], pivoted_data)
-                result = evaluate_factor_with_lgbm(factor_values, pivoted_data)
-                
-                if result['success']:
-                    sharpe = result['sharpe_ratio']
-                    feedback = f"반복 {i}: 팩터 '{factor['expression']}' -> Sharpe: {sharpe:.2f}."
-                    feedback_history.append(feedback)
-                    alpha_zoo.add_factor(factor['expression'])
-                    
-                    st.session_state.log_messages.append({
-                        "iteration": i, "success": True, "hypothesis": hypothesis, 
-                        "expression": factor['expression'], "sharpe": sharpe, "result": result
-                    })
-
-                    if sharpe > st.session_state.best_factor['sharpe']:
-                        st.session_state.best_factor = {
-                            'sharpe': sharpe, 'description': factor['description'], 
-                            'expression': factor['expression'], 'result': result
-                        }
-                    
-                    status.update(label=f"✅ 반복 {i} 성공! (Sharpe: {sharpe:.2f})", state="complete")
-                else:
-                    raise ValueError(f"모델 평가 실패: {result['error']}")
-
+                chat_session = self.model.start_chat()
+                response = chat_session.send_message(prompt)
+                return response.text
             except Exception as e:
-                feedback = f"반복 {i}: 실패. ({str(e)})"
-                feedback_history.append(feedback)
-                st.session_state.log_messages.append({"iteration": i, "success": False, "error": str(e)})
-                status.update(label=f"❌ 반복 {i} 실패", state="error")
+                print(f"LLM API 호출 중 오류 발생: {e}. {delay}초 후 재시도합니다... ({i+1}/{retries})")
+                time.sleep(delay)
+        raise RuntimeError("LLM API 호출에 최종적으로 실패했습니다.")
 
-    st.balloons()
-
-if st.session_state.analysis_done:
-    st.subheader("3. 분석 결과")
-
-    best = st.session_state.best_factor
-    if best['sharpe'] > -np.inf:
-        st.success(f"🎉 **최고의 전략을 찾았습니다!** (Sharpe Ratio: {best['sharpe']:.3f})")
+    def _parse_json_from_response(self, response_text: str) -> Dict[str, Any]:
+        """LLM 응답에서 JSON 코드 블록을 추출하고 파싱합니다."""
+        # ```json ... ``` 형태의 마크다운 코드 블록에서 JSON 부분만 추출
+        match = re.search(r'```json\s*([\s\S]+?)\s*```', response_text)
+        if not match:
+            raise ValueError("응답에서 JSON 객체를 찾을 수 없습니다.")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("연간 수익률", f"{best['result']['annual_return'] * 100:.2f} %")
-            st.metric("최대 낙폭 (MDD)", f"{best['result']['mdd'] * 100:.2f} %")
+        json_str = match.group(1)
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"JSON 파싱 오류: {e}\n원본 JSON 문자열: {json_str}")
+
+    def generate_hypothesis(self, external_knowledge: str, existing_hypotheses: List[str]) -> Dict[str, Any]:
+        """
+        시장 가설을 생성합니다. (IdeaAgent가 사용)
+        """
+        prompt = f"""
+        당신은 월스트리트의 저명한 퀀트 분석가입니다. 당신의 임무는 새로운 알파 팩터를 발굴하기 위한 창의적이고 논리적인 시장 가설을 수립하는 것입니다.
+
+        다음은 최근 시장 분석 리포트와 전문가 의견입니다:
+        --- [외부 지식] ---
+        {external_knowledge}
+        --- [외부 지식 끝] ---
+
+        다음은 이미 탐색했던 가설들이니, 이것들과는 다른 새로운 관점의 가설을 제시해야 합니다:
+        --- [기존 가설 목록] ---
+        {', '.join(existing_hypotheses) if existing_hypotheses else '없음'}
+        --- [기존 가설 목록 끝] ---
+
+        위 정보를 바탕으로, 다음 5가지 구성요소를 포함하는 새로운 시장 가설을 JSON 형식으로 제안해주십시오.
+        1.  knowledge: 가설의 기반이 되는 금융 이론 또는 시장 원리.
+        2.  market_observation: 가설을 뒷받침하는 실제 시장 관찰 현상.
+        3.  justification: 관찰 현상이 이론과 어떻게 연결되어 투자 기회로 이어지는지에 대한 논리적 설명.
+        4.  hypothesis: 포착하고자 하는 구체적인 시장 비효율성 또는 패턴에 대한 명확한 가설 서술.
+        5.  specification: 가설을 팩터로 구현할 때 고려해야 할 구체적인 조건이나 파라미터(e.g., "최근 20일간의 거래량 평균", "주가 돌파 기준 5%").
+
+        출력 형식은 반드시 다음 JSON 구조를 따라야 합니다:
+        ```json
+        {{
+          "knowledge": "...",
+          "market_observation": "...",
+          "justification": "...",
+          "hypothesis": "...",
+          "specification": "..."
+        }}
+        ```
+        """
+        response_text = self._send_request(prompt)
+        return self._parse_json_from_response(response_text)
+
+    def generate_factor_from_hypothesis(self, hypothesis: Dict[str, Any]) -> Dict[str, str]:
+        """
+        주어진 가설로부터 팩터 설명과 공식을 생성합니다. (FactorAgent가 사용)
+        """
+        prompt = f"""
+        당신은 퀀트 개발자입니다. 주어진 시장 가설을 실행 가능한 알파 팩터로 변환하는 것이 당신의 역할입니다.
+
+        --- [시장 가설] ---
+        - 지식: {hypothesis.get('knowledge')}
+        - 관찰: {hypothesis.get('market_observation')}
+        - 논리: {hypothesis.get('justification')}
+        - 가설: {hypothesis.get('hypothesis')}
+        - 조건: {hypothesis.get('specification')}
+        --- [시장 가설 끝] ---
+
+        이 가설을 구현하기 위한 팩터의 '설명(description)'과 '공식(formula)'을 생성해주십시오.
+        - '설명'은 이 팩터가 무엇을 측정하고 어떤 논리로 작동하는지 자연어로 명확하게 서술해야 합니다.
+        - '공식'은 Operator Library(e.g., rank, correlation, ts_min, high, low, close, volume)의 함수들을 사용하여 작성해야 합니다.
+
+        출력 형식은 반드시 다음 JSON 구조를 따라야 합니다:
+        ```json
+        {{
+          "description": "이 팩터는 ...을 측정하여 ... 신호를 포착합니다.",
+          "formula": "예: rank(correlation(high, volume, 10))"
+        }}
+        ```
+        """
+        response_text = self._send_request(prompt)
+        return self._parse_json_from_response(response_text)
+    
+    def score_hypothesis_alignment(self, hypothesis: str, factor_description: str) -> Dict[str, Any]:
+        """가설과 팩터 설명 간의 일치도를 평가합니다. (c1(h,d))"""
+        prompt = f"""
+        당신은 퀀트 리서치 팀장입니다. 가설과 이를 구현한 팩터 설명 간의 논리적 일관성을 평가해야 합니다.
+
+        - [가설]: {hypothesis}
+        - [팩터 설명]: {factor_description}
         
-        with col2:
-            st.write("**📝 팩터 설명**")
-            st.info(f"{best['description']}")
-            st.write("**⚙️ 팩터 수식**")
-            st.code(f"{best['expression']}", language="python")
+        '팩터 설명'이 '가설'을 얼마나 잘 구현하고 있는지 0.0에서 1.0 사이의 점수로 평가하고, 그 이유를 간략히 서술해주십시오.
+        - 1.0: 가설의 핵심 아이디어를 완벽하게 반영함.
+        - 0.5: 일부 관련성은 있으나, 가설의 핵심을 놓치거나 왜곡함.
+        - 0.0: 가설과 전혀 관련 없음.
+        
+        출력은 반드시 다음 JSON 형식을 따라야 합니다:
+        ```json
+        {{
+            "score": 0.8,
+            "justification": "팩터 설명이 가설의 ... 측면은 잘 반영했지만, ... 부분은 고려하지 않아 감점됨."
+        }}
+        ```
+        """
+        response_text = self._send_request(prompt)
+        return self._parse_json_from_response(response_text)
 
-        st.line_chart(best['result']['cumulative_returns'])
+    def score_description_alignment(self, factor_description: str, factor_formula: str) -> Dict[str, Any]:
+        """팩터 설명과 공식 간의 일치도를 평가합니다. (c2(d,f))"""
+        prompt = f"""
+        당신은 퀀트 코드 리뷰어입니다. 팩터 설명과 실제 구현 공식이 일치하는지 검토해야 합니다.
 
-    else:
-        st.error("유의미한 전략을 찾지 못했습니다. 아이디어를 바꿔 다시 시도해보세요.")
+        - [팩터 설명]: {factor_description}
+        - [팩터 공식]: {factor_formula}
 
-    with st.expander("🔍 전체 분석 과정 로그 보기"):
-        for log in st.session_state.log_messages:
-            if log['success']:
-                st.markdown(f"--- \n**[성공] 반복 #{log['iteration']} | Sharpe: {log['sharpe']:.3f}**")
-                st.text(f"가설: {log['hypothesis']}")
-                st.code(f"수식: {log['expression']}", language="python")
-            else:
-                st.markdown(f"--- \n**[실패] 반복 #{log['iteration']}**")
-                st.error(f"오류: {log['error']}")
+        '팩터 공식'이 '팩터 설명'에 서술된 로직을 얼마나 정확하게 수학적으로 구현했는지 0.0에서 1.0 사이의 점수로 평가하고, 그 이유를 서술해주십시오.
+        
+        출력은 반드시 다음 JSON 형식을 따라야 합니다:
+        ```json
+        {{
+            "score": 0.9,
+            "justification": "설명의 대부분의 로직이 공식에 정확히 구현되었으나, '최근'이라는 표현이 상수로 고정된 점이 아쉬움."
+        }}
+        ```
+        """
+        response_text = self._send_request(prompt)
+        return self._parse_json_from_response(response_text)
+
+    def generate_investment_advice(self, factor_info: Dict[str, Any]) -> str:
+        """최종 선정된 팩터를 기반으로 투자 조언 리포트를 생성합니다. (AdvisoryAgent가 사용)"""
+        prompt = f"""
+        당신은 개인 투자자를 위한 투자 자문가입니다. 복잡한 퀀트 모델의 결과를 이해하기 쉬운 투자 조언으로 변환하는 것이 당신의 임무입니다.
+        최근 발굴된 우수한 알파 팩터 정보를 바탕으로, 아래 목차에 따라 '투자 조언 리포트'를 작성해주십시오.
+
+        --- [최종 알파 팩터 정보] ---
+        - 팩터 공식: {factor_info.get('formula')}
+        - 팩터 설명: {factor_info.get('description')}
+        - 연평균수익률(AR): {factor_info.get('ar'):.2%}
+        - 정보비율(IR): {factor_info.get('ir'):.2f}
+        - 최대낙폭(MDD): {factor_info.get('mdd'):.2%}
+        --- [정보 끝] ---
+
+        # 투자 조언 리포트
+
+        <한 눈에 보는 투자 전략>
+        
+        ## 1. 신규 팩터 "{factor_info.get('name', 'X')}"의 정의
+        (새롭게 발굴한 알파 팩터에 대한 간결한 정의와 이 팩터가 포착하는 시장 비효율성 또는 투자 기회에 대한 핵심 설명을 작성하세요.)
+
+        ## 2. 투자 전략 개요
+        ("{factor_info.get('name', 'X')}" 팩터를 활용한 투자 전략의 핵심 컨셉 및 목표 수익률, 위험 수준 요약을 작성하세요. 제공된 성과 지표를 참고하세요.)
+
+        ## 3. 핵심 투자 제안
+        (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
+        """
+        return self._send_request(prompt)
