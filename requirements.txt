@@ -14,9 +14,10 @@ bayesian-optimization
 # LLM Client
 google-generativeai
 openai
-requests # 이 부분을 추가하세요!
+requests
+
+# Streamlit UI
+streamlit
 
 # Utilities
 tqdm
-
-
