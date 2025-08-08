@@ -1,10 +1,9 @@
-# app.py (Streamlit UI 통합 최종 버전)
+# main.py (Streamlit UI 통합 최종 버전)
 import streamlit as st
 import pandas as pd
 import numpy as np
 
 # --- 1. 최종 코드의 모든 모듈 및 클래스 import ---
-# 디렉터리 구조에 맞게 import 경로를 수정했습니다.
 from agents.idea_agent import IdeaAgent
 from agents.factor_agent import FactorAgent
 from agents.eval_agent import EvalAgent
@@ -17,7 +16,6 @@ from clients.backtester_client import BacktesterClient
 import config
 
 # --- 3. Streamlit 페이지 설정 및 디자인 적용 ---
-# KB금융그룹 브랜드 아이덴티티 반영 (노란색 강조색)
 st.set_page_config(
     page_title="AlphaAgent: KB 금융 AI 투자 전략 탐색기",
     page_icon="🤖",
@@ -25,61 +23,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 사용자 정의 CSS를 사용하여 폰트, 배경색, 주요 색상 등을 설정합니다.
+# 사용자 정의 CSS
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
     
-    html, body, [class*="st-"] {
-        font-family: 'Noto Sans KR', sans-serif;
-    }
-    .main-header h1 {
-        color: #FFC107;
-        text-align: center;
-        font-size: 2.5rem;
-        font-weight: 700;
-        margin-bottom: 0;
-    }
-    .stButton>button {
-        background-color: #FFC107;
-        color: black;
-        border-radius: 8px;
-        font-weight: 700;
-        border: none;
-    }
-    .stButton>button:hover {
-        background-color: #E6B800;
-    }
-    .stMetric > div {
-        background-color: #f7f7f7;
-        padding: 1.5rem;
-        border-radius: 8px;
-        border: 1px solid #ddd;
-    }
-    .stMetric label {
-        font-size: 1rem;
-        color: #666;
-        font-weight: normal;
-    }
-    .stMetric p {
-        font-size: 1.5rem;
-        font-weight: 700;
-        margin-top: 0.5rem;
-    }
-    .report-header {
-        color: #FFC107;
-        font-weight: 700;
-        border-bottom: 2px solid #FFC107;
-        padding-bottom: 0.5rem;
-    }
-    .stCodeBlock pre {
-        background-color: #f0f0f0;
-        border-left: 5px solid #FFC107;
-    }
-    .streamlit-expander {
-        border-left: 5px solid #FFC107;
-        border-radius: 8px;
-    }
+    html, body, [class*="st-"] { font-family: 'Noto Sans KR', sans-serif; }
+    .main-header h1 { color: #FFC107; text-align: center; font-size: 2.5rem; font-weight: 700; margin-bottom: 0; }
+    .stButton>button { background-color: #FFC107; color: black; border-radius: 8px; font-weight: 700; border: none; }
+    .stButton>button:hover { background-color: #E6B800; }
+    .stMetric > div { background-color: #f7f7f7; padding: 1.5rem; border-radius: 8px; border: 1px solid #ddd; }
+    .stMetric label { font-size: 1rem; color: #666; font-weight: normal; }
+    .stMetric p { font-size: 1.5rem; font-weight: 700; margin-top: 0.5rem; }
+    .report-header { color: #FFC107; font-weight: 700; border-bottom: 2px solid #FFC107; padding-bottom: 0.5rem; }
+    .stCodeBlock pre { background-color: #f0f0f0; border-left: 5px solid #FFC107; }
+    .streamlit-expander { border-left: 5px solid #FFC107; border-radius: 8px; }
     </style>
     <div class="main-header">
         <h1>🤖 AlphaAgent: KB 금융 AI 투자 전략 탐색기</h1>
@@ -88,7 +46,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 4. 세션 상태 초기화 ---
-# 앱이 리로드 되어도 변수 값을 유지하기 위해 세션 상태를 사용합니다.
 if 'agents' not in st.session_state:
     st.session_state.agents = None
 if 'db' not in st.session_state:
@@ -103,14 +60,12 @@ with st.sidebar:
     st.header("⚙️ 설정")
     st.info("API 키는 `config.py` 또는 `.streamlit/secrets.toml`에 설정되어야 합니다.")
 
-    # 외부 지식 입력 UI
     external_knowledge = st.text_area(
         "💡 AI에게 제공할 시장 분석 정보 (선택)",
         value=config.EXTERNAL_KNOWLEDGE,
         height=150
     )
 
-    # 알파 탐색 라운드 수
     discovery_rounds = st.number_input(
         "🔄 알파 탐색 라운드 수",
         min_value=1,
@@ -118,10 +73,8 @@ with st.sidebar:
         value=3
     )
 
-    # 베이지안 최적화 실행 여부
     run_optimization = st.checkbox("🧠 하이퍼파라미터 최적화 실행 (추가 시간 소요)", value=False)
 
-    # 분석 시작 버튼
     start_button = st.button("✨ 분석 시작!")
     st.markdown("---")
     st.info("데이터 파일 URL: `config.py` 파일의 `KOR_STOCK_DATA_URL`")
@@ -142,13 +95,13 @@ if start_button:
     st.session_state.best_factor_info = None
 
     # 1. 에이전트 및 클라이언트 초기화
+    # 중복된 초기화 로직을 제거하고 아래의 try...except 블록만 남깁니다.
     try:
         # config.py의 GOOGLE_API_KEY를 직접 사용합니다.
         llm_client = LLMClient(api_key=config.GOOGLE_API_KEY)
         db_client = DatabaseClient()
         backtester_client = BacktesterClient(data_url=config.KOR_STOCK_DATA_URL)
         
-        # 에이전트 객체 생성
         st.session_state.agents = {
             'llm': llm_client,
             'db': db_client,
@@ -158,9 +111,8 @@ if start_button:
             'eval': EvalAgent(db_client, backtester_client),
             'advisory': AdvisoryAgent(llm_client, db_client)
         }
-        st.session_state.db = db_client # DB 클라이언트는 별도로 저장
+        st.session_state.db = db_client
     except (ValueError, RuntimeError) as e:
-        # 키가 없거나 데이터 URL이 잘못된 경우 오류를 표시합니다.
         st.error(f"초기화 오류: {e}. `config.py` 파일의 API 키와 데이터 URL 설정을 확인해주세요.")
         st.stop()
 
@@ -185,7 +137,6 @@ if start_button:
     all_logs = []
     
     with st.status("🚀 AlphaAgent 분석 시작...", expanded=True) as status:
-        # 사용자 아이디어를 IdeaAgent에 제공할 외부 지식으로 활용
         current_knowledge = user_idea + "\n\n" + external_knowledge
         
         for i in range(discovery_rounds):
@@ -193,17 +144,14 @@ if start_button:
             status.update(label=f"🔄 라운드 {i+1}/{discovery_rounds} 진행 중...", state="running")
             
             try:
-                # IdeaAgent 실행
                 with st.spinner("💡 가설 생성 중..."):
                     st.session_state.agents['idea'].run(current_knowledge)
                     all_logs.append("💡 가설 생성 완료.")
 
-                # FactorAgent 실행
                 with st.spinner("📝 팩터 생성 및 검증 중..."):
                     st.session_state.agents['factor'].run()
                     all_logs.append("📝 팩터 생성 및 검증 완료.")
 
-                # EvalAgent 실행
                 with st.spinner("📊 팩터 백테스팅 및 평가 중..."):
                     st.session_state.agents['eval'].run()
                     all_logs.append("📊 팩터 백테스팅 완료.")
@@ -218,12 +166,10 @@ if start_button:
                 break
         
         if st.session_state.final_report is None:
-            # 4. 최종 리포트 생성
             status.update(label="📜 최종 투자 조언 리포트 생성 중...", state="running")
             best_factor_info = st.session_state.db.get_best_factor()
             if best_factor_info:
                 st.session_state.best_factor_info = best_factor_info
-                # AdvisoryAgent를 직접 호출하는 대신, 결과를 UI에 표시하는 로직으로 변경
                 llm_client = st.session_state.agents['llm']
                 st.session_state.final_report = llm_client.generate_investment_advice(best_factor_info)
                 status.update(label="🎉 분석 완료! 최종 리포트가 생성되었습니다.", state="complete", expanded=False)
@@ -255,9 +201,7 @@ if st.session_state.best_factor_info:
         st.write("##### 팩터 수식")
         st.code(best_factor['formula'], language='python')
 
-    # 누적 수익률 그래프
-    # 백테스팅 결과에 cumulative_returns를 직접 반환하도록 수정해야 함
-    # 현재 코드는 cumulative_returns를 반환하지 않으므로, 이 부분을 시각화하려면 백테스터 코드를 수정해야 합니다.
+    # 누적 수익률 그래프 시각화는 백테스터 코드를 수정해야 합니다.
     # 예시: st.line_chart(best_factor['cumulative_returns'])
 
     st.markdown("---")
