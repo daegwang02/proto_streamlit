@@ -90,18 +90,17 @@ user_idea = st.text_area(
 
 # 분석 시작 버튼이 눌렸을 때 전체 워크플로우 실행
 if start_button:
-    # 세션 상태 초기화 (재분석 시)
+    # 세션 상태 초기화
     st.session_state.final_report = None
     st.session_state.best_factor_info = None
 
-    # 1. 에이전트 및 클라이언트 초기화
-    # 중복된 초기화 로직을 제거하고 아래의 try...except 블록만 남깁니다.
     try:
-        # config.py의 GOOGLE_API_KEY를 직접 사용합니다.
-        llm_client = LLMClient(api_key=config.GOOGLE_API_KEY)
+        # st.secrets에서 직접 GOOGLE_API_KEY를 가져옵니다.
+        llm_client = LLMClient(api_key=st.secrets.GOOGLE_API_KEY)
         db_client = DatabaseClient()
-        backtester_client = BacktesterClient(data_url=config.KOR_STOCK_DATA_URL)
-        
+        backtester_client = BacktesterClient(data_url=st.secrets.KOR_STOCK_DATA_URL) # 데이터 URL도 secrets에서 가져오도록 변경 가능
+
+        # 에이전트 객체 생성
         st.session_state.agents = {
             'llm': llm_client,
             'db': db_client,
@@ -112,9 +111,10 @@ if start_button:
             'advisory': AdvisoryAgent(llm_client, db_client)
         }
         st.session_state.db = db_client
-    except (ValueError, RuntimeError) as e:
-        st.error(f"초기화 오류: {e}. `config.py` 파일의 API 키와 데이터 URL 설정을 확인해주세요.")
+    except Exception as e:
+        st.error(f"초기화 오류: {e}. Secrets 설정이 올바른지 확인해주세요.")
         st.stop()
+
 
     # 2. 하이퍼파라미터 최적화 (선택 사항)
     if run_optimization:
@@ -215,3 +215,4 @@ with st.expander("🔍 전체 분석 과정 로그 보기"):
     st.dataframe(st.session_state.db.hypotheses if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.factors if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.evaluations if st.session_state.db else pd.DataFrame(), use_container_width=True)
+
