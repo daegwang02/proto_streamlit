@@ -13,10 +13,9 @@ class LLMClient:
         """
         LLM 클라이언트를 초기화하고 API를 설정합니다.
         """
-        # --- 이 부분을 수정하세요 ---
         # API 키가 유효한지 확인하고 설정
         if not api_key or api_key.strip() == "" or api_key == "YOUR_GOOGLE_API_KEY":
-            raise ValueError("Google API 키가 설정되지 않았거나 비어있습니다. config.py 파일을 확인해주세요.")
+            raise ValueError("Google API 키가 설정되지 않았거나 비어있습니다. Secrets 설정 또는 config.py 파일을 확인해주세요.")
             
         genai.configure(api_key=api_key)
         
@@ -159,7 +158,8 @@ class LLMClient:
         ```
         """
         response_text = self._send_request(prompt)
-        return self._parse_json_from_from_response(response_text)
+        # ⚠️ 이 부분의 오타를 수정했습니다.
+        return self._parse_json_from_response(response_text)
 
     def score_description_alignment(self, factor_description: str, factor_formula: str) -> Dict[str, Any]:
         """팩터 설명과 공식 간의 일치도를 평가합니다. (c2(d,f))"""
