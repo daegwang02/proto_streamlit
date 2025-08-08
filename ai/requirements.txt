@@ -5,3 +5,5 @@ numpy
 openai
 lightgbm
 scikit-learn 
+pyarrow
+
