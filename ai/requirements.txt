@@ -1,9 +1,19 @@
-# requirements.txt
-streamlit
+# Data Handling
 pandas
 numpy
-openai
-lightgbm
-scikit-learn 
 pyarrow
+fastparquet
+
+# Machine Learning
+scikit-learn
+lightgbm
+
+# Bayesian Optimization
+bayesian-optimization
+
+# LLM Client
+google-generativeai
+
+# Utilities
+tqdm
 
