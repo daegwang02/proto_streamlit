@@ -103,7 +103,7 @@ with st.sidebar:
     st.header("⚙️ 설정")
 
     # API 키 입력 UI (보안을 위해 텍스트 입력창으로 받음)
-    llm_api_key = st.text_input("Google Gemini API 키를 입력하세요.", type="password")
+    #llm_api_key = st.text_input("Google Gemini API 키를 입력하세요.", type="password")
 
     # 외부 지식 입력 UI
     external_knowledge = st.text_area(
@@ -141,9 +141,28 @@ user_idea = st.text_area(
 
 # 분석 시작 버튼이 눌렸을 때 전체 워크플로우 실행
 if start_button:
-    # LLM API 키 유효성 검사
-    if not llm_api_key and not hasattr(config, 'GOOGLE_API_KEY'):
-        st.error("Google Gemini API 키를 입력해주세요.")
+    # ⚠️ API 키 유효성 검사 로직을 간소화
+    try:
+        # config.py의 GOOGLE_API_KEY를 직접 사용합니다.
+        # 이전에 제공해 드렸던 llm_api_key 변수는 이제 사용하지 않습니다.
+        llm_client = LLMClient(api_key=config.GOOGLE_API_KEY)
+        db_client = DatabaseClient()
+        backtester_client = BacktesterClient(data_url=config.KOR_STOCK_DATA_URL)
+        
+        # 에이전트 객체 생성
+        st.session_state.agents = {
+            'llm': llm_client,
+            'db': db_client,
+            'backtester': backtester_client,
+            'idea': IdeaAgent(llm_client, db_client),
+            'factor': FactorAgent(llm_client, db_client),
+            'eval': EvalAgent(db_client, backtester_client),
+            'advisory': AdvisoryAgent(llm_client, db_client)
+        }
+        st.session_state.db = db_client # DB 클라이언트는 별도로 저장
+    except (ValueError, RuntimeError) as e:
+        # 키가 없거나 데이터 URL이 잘못된 경우 오류를 표시합니다.
+        st.error(f"초기화 오류: {e}. `config.py` 파일의 API 키와 데이터 URL 설정을 확인해주세요.")
         st.stop()
     
     # 세션 상태 초기화 (재분석 시)
@@ -280,3 +299,4 @@ with st.expander("🔍 전체 분석 과정 로그 보기"):
     st.dataframe(st.session_state.db.hypotheses if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.factors if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.evaluations if st.session_state.db else pd.DataFrame(), use_container_width=True)
+
