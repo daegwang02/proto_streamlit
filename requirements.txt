@@ -1,7 +1,19 @@
-# requirements.txt
-streamlit
+# Data Handling
 pandas
 numpy
-openai
+pyarrow
+fastparquet
+
+# Machine Learning
+scikit-learn
 lightgbm
-scikit-learn 
+
+# Bayesian Optimization
+bayesian-optimization
+
+# LLM Client
+# 이 부분을 추가하세요!
+google-generativeai
+
+# Utilities
+tqdm
