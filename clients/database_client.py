@@ -14,6 +14,15 @@ class DatabaseClient:
         self.data_cache = None
         self.factor_cache = {}
 
+        # 아래 코드를 추가하여 데이터프레임을 미리 초기화해야 합니다.
+        self._hypothesis_id_counter = 0
+        self.hypotheses = pd.DataFrame(columns=['id', 'hypothesis_text', 'data', 'status'])
+        
+        self._factor_id_counter = 0
+        self.factors = pd.DataFrame(columns=['id', 'formula', 'description', 'status', 'complexity_sl', 'originality_score', 'alignment_score'])
+        
+        self.evaluations = pd.DataFrame(columns=['factor_id', 'IC', 'RankIC', 'ICIR', 'AR', 'IR', 'MDD'])
+
     def save_hypothesis(self, data: Dict[str, Any]) -> int:
         """새로운 가설을 저장합니다."""
         self._hypothesis_id_counter += 1
@@ -117,5 +126,6 @@ class DatabaseClient:
             summary_parts.append("- 아직 유의미한 실패 사례가 없습니다.")
 
         return "\n".join(summary_parts)
+
 
 
