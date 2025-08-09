@@ -216,44 +216,45 @@ class OriginalityAnalyzer:
         
         return max_similarity
 
-# --- 테스트 코드 (기존 코드와 동일) ---
-if __name__ == '__main__':
-    parser = FactorParser()
-    complexity_analyzer = ComplexityAnalyzer()
+# # --- 테스트 코드 (기존 코드와 동일) ---
+# if __name__ == '__main__':
+#     parser = FactorParser()
+#     complexity_analyzer = ComplexityAnalyzer()
     
-    sample_formula = "(rank((open - (sum(vwap, 10) / 10))) * (-1 * abs(rank((close - vwap)))))"
-    print("="*50)
-    print(f"테스트 공식 1: {sample_formula}")
-    print("="*50)
-    ast_tree = parser.parse(sample_formula)
-    print("\n[파서 & 복잡도 테스트]")
-    print(f"AST: {ast_tree}")
-    print(f"상징적 길이: {complexity_analyzer.calculate_symbolic_length(ast_tree)}")
-    print(f"파라미터 개수: {complexity_analyzer.calculate_parameter_count(ast_tree)}")
+#     sample_formula = "(rank((open - (sum(vwap, 10) / 10))) * (-1 * abs(rank((close - vwap)))))"
+#     print("="*50)
+#     print(f"테스트 공식 1: {sample_formula}")
+#     print("="*50)
+#     ast_tree = parser.parse(sample_formula)
+#     print("\n[파서 & 복잡도 테스트]")
+#     print(f"AST: {ast_tree}")
+#     print(f"상징적 길이: {complexity_analyzer.calculate_symbolic_length(ast_tree)}")
+#     print(f"파라미터 개수: {complexity_analyzer.calculate_parameter_count(ast_tree)}")
 
-    print("\n" + "="*50)
-    print("[독창성 분석기 테스트]")
-    print("="*50)
-    originality_analyzer = OriginalityAnalyzer(parser, complexity_analyzer)
-    print(f"Alpha Zoo 로드 완료: 총 {len(originality_analyzer.alpha_zoo_asts)}개 팩터 AST")
+#     print("\n" + "="*50)
+#     print("[독창성 분석기 테스트]")
+#     print("="*50)
+#     originality_analyzer = OriginalityAnalyzer(parser, complexity_analyzer)
+#     print(f"Alpha Zoo 로드 완료: 총 {len(originality_analyzer.alpha_zoo_asts)}개 팩터 AST")
     
-    similar_formula = "(-1 * correlation(open, volume, 10))"
-    similar_ast = parser.parse(similar_formula)
-    similarity1 = originality_analyzer.calculate_similarity_score(similar_ast)
-    print(f"\n테스트 공식 2 (유사도 높음 예상): {similar_formula}")
-    print(f"-> Alpha Zoo와의 유사도 점수: {similarity1:.4f} (1.0에 가까울수록 유사)")
+#     similar_formula = "(-1 * correlation(open, volume, 10))"
+#     similar_ast = parser.parse(similar_formula)
+#     similarity1 = originality_analyzer.calculate_similarity_score(similar_ast)
+#     print(f"\n테스트 공식 2 (유사도 높음 예상): {similar_formula}")
+#     print(f"-> Alpha Zoo와의 유사도 점수: {similarity1:.4f} (1.0에 가까울수록 유사)")
 
-    modified_formula = "(-1 * correlation(high, volume, 10))"
-    modified_ast = parser.parse(modified_formula)
-    similarity2 = originality_analyzer.calculate_similarity_score(modified_ast)
-    print(f"\n테스트 공식 3 (유사도 중간 예상): {modified_formula}")
-    print(f"-> Alpha Zoo와의 유사도 점수: {similarity2:.4f}")
+#     modified_formula = "(-1 * correlation(high, volume, 10))"
+#     modified_ast = parser.parse(modified_formula)
+#     similarity2 = originality_analyzer.calculate_similarity_score(modified_ast)
+#     print(f"\n테스트 공식 3 (유사도 중간 예상): {modified_formula}")
+#     print(f"-> Alpha Zoo와의 유사도 점수: {similarity2:.4f}")
 
-    new_formula = "rank(ts_corr(rank(low), rank(adv20), 5))"
-    new_formula_for_test = "rank(correlation(rank(low), rank(adv20), 5))"
-    new_ast = parser.parse(new_formula_for_test)
-    similarity3 = originality_analyzer.calculate_similarity_score(new_ast)
-    print(f"\n테스트 공식 4 (유사도 낮음 예상): {new_formula_for_test}")
-    print(f"-> Alpha Zoo와의 유사도 점수: {similarity3:.4f} (0에 가까울수록 독창적)")
+#     new_formula = "rank(ts_corr(rank(low), rank(adv20), 5))"
+#     new_formula_for_test = "rank(correlation(rank(low), rank(adv20), 5))"
+#     new_ast = parser.parse(new_formula_for_test)
+#     similarity3 = originality_analyzer.calculate_similarity_score(new_ast)
+#     print(f"\n테스트 공식 4 (유사도 낮음 예상): {new_formula_for_test}")
+#     print(f"-> Alpha Zoo와의 유사도 점수: {similarity3:.4f} (0에 가까울수록 독창적)")
+
 
 
