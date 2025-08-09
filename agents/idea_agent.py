@@ -14,7 +14,9 @@ class IdeaAgent(BaseAgent):
     def run(self, external_knowledge: str):
         """
         새로운 가설을 하나 생성하고 데이터베이스에 저장합니다.
-        [수정] 과거 평가 결과를 조회하여 LLM에 전달하는 로직 추가
+        과거 평가 결과를 조회하여 LLM에 전달하는 로직 추가
+        Args:
+            external_knowledge (str): 가설 생성의 기반이 될 시장 리포트, 뉴스 등 외부 지식.
         """
         print("\n--- IdeaAgent 실행: 새로운 가설 생성 시작 ---")
         
@@ -38,3 +40,4 @@ class IdeaAgent(BaseAgent):
         print(f"✅ IdeaAgent: 새로운 가설 #{hypothesis_id} 생성 완료.")
         print(f"   가설: {new_hypothesis_data.get('hypothesis')}")
         print("--- IdeaAgent 실행 종료 ---\n")
+
