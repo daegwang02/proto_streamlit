@@ -78,6 +78,13 @@ class HyperparameterOptimizer:
     def optimize(self, init_points=5, n_iter=10):
         """
         하이퍼파라미터 최적화를 시작합니다.
+
+        Args:
+            init_points (int): 무작위 탐색을 수행할 초기 스텝 수.
+            n_iter (int): 베이지안 최적화를 수행할 반복 횟수.
+
+        Returns:
+            dict: 찾은 최적의 하이퍼파라미터 딕셔너리.
         """
         print("\n" + "="*80)
         print("          ✨ 하이퍼파라미터 최적화 시작 ✨")
@@ -107,5 +114,6 @@ class HyperparameterOptimizer:
         best_params['max_complexity_pc'] = int(best_params['max_complexity_pc'])
 
         return best_params
+
 
 
