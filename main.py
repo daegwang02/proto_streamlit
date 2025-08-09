@@ -15,206 +15,253 @@ from optimizer.hyperparameter_optimizer import HyperparameterOptimizer
 # --- 2. 설정 파일 import ---
 # config 파일은 더 이상 사용하지 않으므로 import를 제거합니다.
 
-# --- 3. Streamlit 페이지 설정 및 디자인 적용 ---
-st.set_page_config(
-    page_title="AlphaAgent: KB 금융 AI 투자 전략 탐색기",
-    page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# # --- 3. Streamlit 페이지 설정 및 디자인 적용 ---
+# st.set_page_config(
+#     page_title="AlphaAgent: KB 금융 AI 투자 전략 탐색기",
+#     page_icon="🤖",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
 
-# 사용자 정의 CSS
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
+# # 사용자 정의 CSS
+# st.markdown("""
+#     <style>
+#     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
     
-    html, body, [class*="st-"] { font-family: 'Noto Sans KR', sans-serif; }
-    .main-header h1 { color: #FFC107; text-align: center; font-size: 2.5rem; font-weight: 700; margin-bottom: 0; }
-    .stButton>button { background-color: #FFC107; color: black; border-radius: 8px; font-weight: 700; border: none; }
-    .stButton>button:hover { background-color: #E6B800; }
-    .stMetric > div { background-color: #f7f7f7; padding: 1.5rem; border-radius: 8px; border: 1px solid #ddd; }
-    .stMetric label { font-size: 1rem; color: #666; font-weight: normal; }
-    .stMetric p { font-size: 1.5rem; font-weight: 700; margin-top: 0.5rem; }
-    .report-header { color: #FFC107; font-weight: 700; border-bottom: 2px solid #FFC107; padding-bottom: 0.5rem; }
-    .stCodeBlock pre { background-color: #f0f0f0; border-left: 5px solid #FFC107; }
-    .streamlit-expander { border-left: 5px solid #FFC107; border-radius: 8px; }
-    </style>
-    <div class="main-header">
-        <h1>🤖 AlphaAgent: KB 금융 AI 투자 전략 탐색기</h1>
-    </div>
-    <br>
-    """, unsafe_allow_html=True)
+#     html, body, [class*="st-"] { font-family: 'Noto Sans KR', sans-serif; }
+#     .main-header h1 { color: #FFC107; text-align: center; font-size: 2.5rem; font-weight: 700; margin-bottom: 0; }
+#     .stButton>button { background-color: #FFC107; color: black; border-radius: 8px; font-weight: 700; border: none; }
+#     .stButton>button:hover { background-color: #E6B800; }
+#     .stMetric > div { background-color: #f7f7f7; padding: 1.5rem; border-radius: 8px; border: 1px solid #ddd; }
+#     .stMetric label { font-size: 1rem; color: #666; font-weight: normal; }
+#     .stMetric p { font-size: 1.5rem; font-weight: 700; margin-top: 0.5rem; }
+#     .report-header { color: #FFC107; font-weight: 700; border-bottom: 2px solid #FFC107; padding-bottom: 0.5rem; }
+#     .stCodeBlock pre { background-color: #f0f0f0; border-left: 5px solid #FFC107; }
+#     .streamlit-expander { border-left: 5px solid #FFC107; border-radius: 8px; }
+#     </style>
+#     <div class="main-header">
+#         <h1>🤖 AlphaAgent: KB 금융 AI 투자 전략 탐색기</h1>
+#     </div>
+#     <br>
+#     """, unsafe_allow_html=True)
 
-# --- 4. 세션 상태 초기화 ---
-if 'agents' not in st.session_state:
-    st.session_state.agents = None
-if 'db' not in st.session_state:
-    st.session_state.db = None
-if 'final_report' not in st.session_state:
-    st.session_state.final_report = None
-if 'best_factor_info' not in st.session_state:
-    st.session_state.best_factor_info = None
+# # --- 4. 세션 상태 초기화 ---
+# if 'agents' not in st.session_state:
+#     st.session_state.agents = None
+# if 'db' not in st.session_state:
+#     st.session_state.db = None
+# if 'final_report' not in st.session_state:
+#     st.session_state.final_report = None
+# if 'best_factor_info' not in st.session_state:
+#     st.session_state.best_factor_info = None
 
-# --- 5. 사이드바 (설정) ---
-with st.sidebar:
-    st.header("⚙️ 설정")
-    st.info("모든 설정값은 Streamlit Secrets에서 관리됩니다.")
+# # --- 5. 사이드바 (설정) ---
+# with st.sidebar:
+#     st.header("⚙️ 설정")
+#     st.info("모든 설정값은 Streamlit Secrets에서 관리됩니다.")
 
-    external_knowledge = st.text_area(
-        "💡 AI에게 제공할 시장 분석 정보 (선택)",
-        value="""
-        최근 한국 주식 시장은 변동성이 큰 모습을 보이고 있습니다. 
-        특히 금리 인상 사이클의 종료 가능성이 언급되면서, 기존의 성장주 중심 투자에서 가치주 및 배당주로의 순환매 현상이 관찰되고 있습니다.
-        또한, 특정 테마(AI 반도체, 2차전지 소재)에 대한 쏠림 현상 이후, 수급이 분산되면서 개별 종목의 펀더멘털과 단기 모멘텀이 동시에 중요해지는 국면입니다.
-        거래량이 급증하며 특정 가격대를 돌파하는 종목들이 단기적으로 강한 시세를 보이는 경향이 있습니다.
-        """,
-        height=150
+#     external_knowledge = st.text_area(
+#         "💡 AI에게 제공할 시장 분석 정보 (선택)",
+#         value="""
+#         최근 한국 주식 시장은 변동성이 큰 모습을 보이고 있습니다. 
+#         특히 금리 인상 사이클의 종료 가능성이 언급되면서, 기존의 성장주 중심 투자에서 가치주 및 배당주로의 순환매 현상이 관찰되고 있습니다.
+#         또한, 특정 테마(AI 반도체, 2차전지 소재)에 대한 쏠림 현상 이후, 수급이 분산되면서 개별 종목의 펀더멘털과 단기 모멘텀이 동시에 중요해지는 국면입니다.
+#         거래량이 급증하며 특정 가격대를 돌파하는 종목들이 단기적으로 강한 시세를 보이는 경향이 있습니다.
+#         """,
+#         height=150
+#     )
+
+#     discovery_rounds = st.number_input(
+#         "🔄 알파 탐색 라운드 수",
+#         min_value=1,
+#         max_value=10,
+#         value=3
+#     )
+
+#     run_optimization = st.checkbox("🧠 하이퍼파라미터 최적화 실행 (추가 시간 소요)", value=False)
+
+#     start_button = st.button("✨ 분석 시작!")
+#     st.markdown("---")
+#     st.info("데이터 파일 URL: Streamlit Secrets의 `KOR_STOCK_DATA_URL`")
+
+
+# # --- 6. 메인 화면 (분석 실행 및 결과 표시) ---
+# st.write("### AI 투자 아이디어 입력")
+# user_idea = st.text_area(
+#     "어떤 투자 아이디어를 탐색하고 싶으신가요?",
+#     "거래량이 급증하며 가격을 돌파하는 주식",
+#     height=80
+# )
+
+# # 분석 시작 버튼이 눌렸을 때 전체 워크플로우 실행
+# if start_button:
+#     # 세션 상태 초기화
+#     st.session_state.final_report = None
+#     st.session_state.best_factor_info = None
+
+#     try:
+#         # 모든 키와 URL을 st.secrets에서 불러옵니다.
+#         llm_client = LLMClient(api_key=st.secrets.OPENAI_API_KEY)
+#         db_client = DatabaseClient()
+#         backtester_client = BacktesterClient(
+#             data_url=st.secrets.KOR_STOCK_DATA_URL,
+#             # TRANSACTION_FEE_BUY, TRANSACTION_FEE_SELL도 secrets에 등록하고 가져올 수 있습니다.
+#             transaction_fee_buy=st.secrets.TRANSACTION_FEE_BUY,
+#             transaction_fee_sell=st.secrets.TRANSACTION_FEE_SELL
+#         )
+        
+#         st.session_state.agents = {
+#             'llm': llm_client,
+#             'db': db_client,
+#             'backtester': backtester_client,
+#             'idea': IdeaAgent(llm_client, db_client),
+#             'factor': FactorAgent(llm_client, db_client),
+#             'eval': EvalAgent(db_client, backtester_client),
+#             'advisory': AdvisoryAgent(llm_client, db_client)
+#         }
+#         st.session_state.db = db_client
+#     except Exception as e:
+#         st.error(f"초기화 오류: {e}. Secrets 설정이 올바른지 확인해주세요.")
+#         st.stop()
+
+#     # 2. 하이퍼파라미터 최적화 (선택 사항)
+#     if run_optimization:
+#         with st.spinner("🧠 하이퍼파라미터 최적화 중..."):
+#             optimizer = HyperparameterOptimizer(
+#                 st.session_state.agents['idea'],
+#                 st.session_state.agents['factor'],
+#                 st.session_state.agents['eval'],
+#                 external_knowledge
+#             )
+#             # ... 최적화 로직은 그대로 유지 ...
+            
+#     # 3. 알파 탐색 루프 (실시간 상태 표시)
+#     log_container = st.empty()
+#     all_logs = []
+    
+#     with st.status("🚀 AlphaAgent 분석 시작...", expanded=True) as status:
+#         current_knowledge = user_idea + "\n\n" + external_knowledge
+        
+#         for i in range(discovery_rounds):
+#             log_container.info(f"🔄 **라운드 {i+1}/{discovery_rounds} 시작**")
+#             status.update(label=f"🔄 라운드 {i+1}/{discovery_rounds} 진행 중...", state="running")
+            
+#             try:
+#                 with st.spinner("💡 가설 생성 중..."):
+#                     st.session_state.agents['idea'].run(current_knowledge)
+#                     all_logs.append("💡 가설 생성 완료.")
+
+#                 with st.spinner("📝 팩터 생성 및 검증 중..."):
+#                     st.session_state.agents['factor'].run()
+#                     all_logs.append("📝 팩터 생성 및 검증 완료.")
+
+#                 with st.spinner("📊 팩터 백테스팅 및 평가 중..."):
+#                     st.session_state.agents['eval'].run()
+#                     all_logs.append("📊 팩터 백테스팅 완료.")
+                
+#                 log_container.success(f"✅ **라운드 {i+1}/{discovery_rounds} 성공!**")
+                
+#             except Exception as e:
+#                 log_container.error(f"❌ **라운드 {i+1} 실패!** 오류: {e}")
+#                 status.update(label=f"❌ 오류 발생! 라운드 {i+1} 중단", state="error")
+#                 st.session_state.final_report = f"분석 중 오류 발생: {e}"
+#                 st.session_state.best_factor_info = None
+#                 break
+        
+#         if st.session_state.final_report is None:
+#             status.update(label="📜 최종 투자 조언 리포트 생성 중...", state="running")
+#             best_factor_info = st.session_state.db.get_best_factor()
+#             if best_factor_info:
+#                 st.session_state.best_factor_info = best_factor_info
+#                 llm_client = st.session_state.agents['llm']
+#                 st.session_state.final_report = llm_client.generate_investment_advice(best_factor_info)
+#                 status.update(label="🎉 분석 완료! 최종 리포트가 생성되었습니다.", state="complete", expanded=False)
+#             else:
+#                 st.error("분석을 통해 유의미한 팩터를 찾지 못했습니다.")
+#                 status.update(label="분석 실패.", state="error")
+
+
+# # --- 7. 결과 화면 ---
+# if st.session_state.best_factor_info:
+#     best_factor = st.session_state.best_factor_info
+
+#     st.markdown("---")
+#     st.write("### 🥇 최고의 전략")
+    
+#     col1, col2, col3 = st.columns(3)
+#     with col1:
+#         st.metric("🏆 연간 수익률 (AR)", f"{best_factor['ar']*100:.2f}%")
+#     with col2:
+#         st.metric("📉 최대 낙폭 (MDD)", f"{best_factor['mdd']*100:.2f}%")
+#     with col3:
+#         st.metric("📈 정보 비율 (IR)", f"{best_factor['ir']:.3f}")
+    
+#     st.markdown("---")
+#     st.write("#### 📝 전략 상세 정보")
+#     with st.expander("AI가 찾은 최고의 팩터에 대한 설명 및 수식 보기"):
+#         st.write("##### 팩터 설명")
+#         st.info(f"{best_factor['description']}")
+#         st.write("##### 팩터 수식")
+#         st.code(best_factor['formula'], language='python')
+
+#     st.markdown("---")
+#     st.write("#### 🧠 AI 투자 조언")
+#     with st.expander("AlphaAgent가 제시하는 투자 조언 리포트 보기"):
+#         st.markdown(st.session_state.final_report)
+
+# # --- 8. 전체 로그 표시 (디버깅용) ---
+# with st.expander("🔍 전체 분석 과정 로그 보기"):
+#     st.write("이 섹션은 디버깅 및 전체 워크플로우를 확인하기 위해 사용됩니다.")
+#     st.dataframe(st.session_state.db.hypotheses if st.session_state.db else pd.DataFrame(), use_container_width=True)
+#     st.dataframe(st.session_state.db.factors if st.session_state.db else pd.DataFrame(), use_container_width=True)
+#     st.dataframe(st.session_state.db.evaluations if st.session_state.db else pd.DataFrame(), use_container_width=True)
+
+#---------여 위에는 대광 코드 
+
+# -*- coding: utf-8 -*-
+"""main.py
+
+Automatically generated by Colab.
+
+Original file is located at
+    https://colab.research.google.com/drive/1zQ2ZgF3NPaokEYuqM4HFS3xU-cis60We
+"""
+
+import streamlit as st
+
+# --- 페이지 디자인 및 구성 ---
+
+# 페이지의 제목과 아이콘 설정
+st.set_page_config(page_title="Vibe Quant", page_icon="📈")
+
+# ④ 서비스 이름: 굵은 글씨
+st.title("Vibe Quant")
+
+# 프롬프트 입력을 위한 폼(Form) 생성
+# st.form을 사용하면 내부의 모든 위젯(text_input, button 등)이 함께 제출되어
+# 입력 중 불필요한 페이지 새로고침을 방지합니다.
+with st.form(key="prompt_form"):
+    # ① 프롬프트 입력창
+    # ② 프롬프트 입력 보조문: placeholder로 구현. 사용자가 클릭하면 사라지는 연한 글씨.
+    prompt = st.text_input(
+        "prompt_input",  # 고유 key
+        placeholder="어떤 알파팩터를 찾아드릴까요?",
+        label_visibility="collapsed"  # 입력창 위의 라벨을 숨김
     )
 
-    discovery_rounds = st.number_input(
-        "🔄 알파 탐색 라운드 수",
-        min_value=1,
-        max_value=10,
-        value=3
-    )
+    # ③ 클릭 버튼: 화살표 아이콘, 답변 페이지로 이동 (기능 시뮬레이션)
+    # st.form_submit_button을 사용해 폼 제출 버튼을 만듭니다.
+    submitted = st.form_submit_button(label="➤")
 
-    run_optimization = st.checkbox("🧠 하이퍼파라미터 최적화 실행 (추가 시간 소요)", value=False)
+# --- 로직 처리 ---
 
-    start_button = st.button("✨ 분석 시작!")
-    st.markdown("---")
-    st.info("데이터 파일 URL: Streamlit Secrets의 `KOR_STOCK_DATA_URL`")
-
-
-# --- 6. 메인 화면 (분석 실행 및 결과 표시) ---
-st.write("### AI 투자 아이디어 입력")
-user_idea = st.text_area(
-    "어떤 투자 아이디어를 탐색하고 싶으신가요?",
-    "거래량이 급증하며 가격을 돌파하는 주식",
-    height=80
-)
-
-# 분석 시작 버튼이 눌렸을 때 전체 워크플로우 실행
-if start_button:
-    # 세션 상태 초기화
-    st.session_state.final_report = None
-    st.session_state.best_factor_info = None
-
-    try:
-        # 모든 키와 URL을 st.secrets에서 불러옵니다.
-        llm_client = LLMClient(api_key=st.secrets.OPENAI_API_KEY)
-        db_client = DatabaseClient()
-        backtester_client = BacktesterClient(
-            data_url=st.secrets.KOR_STOCK_DATA_URL,
-            # TRANSACTION_FEE_BUY, TRANSACTION_FEE_SELL도 secrets에 등록하고 가져올 수 있습니다.
-            transaction_fee_buy=st.secrets.TRANSACTION_FEE_BUY,
-            transaction_fee_sell=st.secrets.TRANSACTION_FEE_SELL
-        )
-        
-        st.session_state.agents = {
-            'llm': llm_client,
-            'db': db_client,
-            'backtester': backtester_client,
-            'idea': IdeaAgent(llm_client, db_client),
-            'factor': FactorAgent(llm_client, db_client),
-            'eval': EvalAgent(db_client, backtester_client),
-            'advisory': AdvisoryAgent(llm_client, db_client)
-        }
-        st.session_state.db = db_client
-    except Exception as e:
-        st.error(f"초기화 오류: {e}. Secrets 설정이 올바른지 확인해주세요.")
-        st.stop()
-
-    # 2. 하이퍼파라미터 최적화 (선택 사항)
-    if run_optimization:
-        with st.spinner("🧠 하이퍼파라미터 최적화 중..."):
-            optimizer = HyperparameterOptimizer(
-                st.session_state.agents['idea'],
-                st.session_state.agents['factor'],
-                st.session_state.agents['eval'],
-                external_knowledge
-            )
-            # ... 최적화 로직은 그대로 유지 ...
-            
-    # 3. 알파 탐색 루프 (실시간 상태 표시)
-    log_container = st.empty()
-    all_logs = []
-    
-    with st.status("🚀 AlphaAgent 분석 시작...", expanded=True) as status:
-        current_knowledge = user_idea + "\n\n" + external_knowledge
-        
-        for i in range(discovery_rounds):
-            log_container.info(f"🔄 **라운드 {i+1}/{discovery_rounds} 시작**")
-            status.update(label=f"🔄 라운드 {i+1}/{discovery_rounds} 진행 중...", state="running")
-            
-            try:
-                with st.spinner("💡 가설 생성 중..."):
-                    st.session_state.agents['idea'].run(current_knowledge)
-                    all_logs.append("💡 가설 생성 완료.")
-
-                with st.spinner("📝 팩터 생성 및 검증 중..."):
-                    st.session_state.agents['factor'].run()
-                    all_logs.append("📝 팩터 생성 및 검증 완료.")
-
-                with st.spinner("📊 팩터 백테스팅 및 평가 중..."):
-                    st.session_state.agents['eval'].run()
-                    all_logs.append("📊 팩터 백테스팅 완료.")
-                
-                log_container.success(f"✅ **라운드 {i+1}/{discovery_rounds} 성공!**")
-                
-            except Exception as e:
-                log_container.error(f"❌ **라운드 {i+1} 실패!** 오류: {e}")
-                status.update(label=f"❌ 오류 발생! 라운드 {i+1} 중단", state="error")
-                st.session_state.final_report = f"분석 중 오류 발생: {e}"
-                st.session_state.best_factor_info = None
-                break
-        
-        if st.session_state.final_report is None:
-            status.update(label="📜 최종 투자 조언 리포트 생성 중...", state="running")
-            best_factor_info = st.session_state.db.get_best_factor()
-            if best_factor_info:
-                st.session_state.best_factor_info = best_factor_info
-                llm_client = st.session_state.agents['llm']
-                st.session_state.final_report = llm_client.generate_investment_advice(best_factor_info)
-                status.update(label="🎉 분석 완료! 최종 리포트가 생성되었습니다.", state="complete", expanded=False)
-            else:
-                st.error("분석을 통해 유의미한 팩터를 찾지 못했습니다.")
-                status.update(label="분석 실패.", state="error")
-
-
-# --- 7. 결과 화면 ---
-if st.session_state.best_factor_info:
-    best_factor = st.session_state.best_factor_info
-
-    st.markdown("---")
-    st.write("### 🥇 최고의 전략")
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("🏆 연간 수익률 (AR)", f"{best_factor['ar']*100:.2f}%")
-    with col2:
-        st.metric("📉 최대 낙폭 (MDD)", f"{best_factor['mdd']*100:.2f}%")
-    with col3:
-        st.metric("📈 정보 비율 (IR)", f"{best_factor['ir']:.3f}")
-    
-    st.markdown("---")
-    st.write("#### 📝 전략 상세 정보")
-    with st.expander("AI가 찾은 최고의 팩터에 대한 설명 및 수식 보기"):
-        st.write("##### 팩터 설명")
-        st.info(f"{best_factor['description']}")
-        st.write("##### 팩터 수식")
-        st.code(best_factor['formula'], language='python')
-
-    st.markdown("---")
-    st.write("#### 🧠 AI 투자 조언")
-    with st.expander("AlphaAgent가 제시하는 투자 조언 리포트 보기"):
-        st.markdown(st.session_state.final_report)
-
-# --- 8. 전체 로그 표시 (디버깅용) ---
-with st.expander("🔍 전체 분석 과정 로그 보기"):
-    st.write("이 섹션은 디버깅 및 전체 워크플로우를 확인하기 위해 사용됩니다.")
-    st.dataframe(st.session_state.db.hypotheses if st.session_state.db else pd.DataFrame(), use_container_width=True)
-    st.dataframe(st.session_state.db.factors if st.session_state.db else pd.DataFrame(), use_container_width=True)
-    st.dataframe(st.session_state.db.evaluations if st.session_state.db else pd.DataFrame(), use_container_width=True)
-
+# 제출 버튼이 클릭되었고, 사용자가 무언가를 입력했다면
+if submitted and prompt:
+    # '답변 페이지로 이동'하는 것을 시뮬레이션하기 위해
+    # 사용자가 입력한 프롬프트를 화면에 다시 출력합니다.
+    st.success(f"'{prompt}'에 대한 분석을 시작합니다.")
+    st.info("결과 페이지로 이동 중입니다...")
+    # 실제 서비스에서는 이 부분에 답변을 생성하고 페이지를 전환하는 코드가 들어갑니다.
+    # 예: st.switch_page("pages/results.py") (Streamlit 1.33.0 이상)
 
 
