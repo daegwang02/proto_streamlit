@@ -10,9 +10,6 @@ class LLMClient:
     OpenAI API와 상호작용하여 LLM의 기능을 활용하는 클라이언트입니다.
     """
     def __init__(self, api_key: str):
-        """
-        LLM 클라이언트를 초기화하고 API를 설정합니다.
-        """
         if not api_key or api_key.strip() == "" or not api_key.startswith("sk-"):
             raise ValueError("OpenAI API 키가 잘못되었거나 설정되지 않았습니다.")
             
@@ -20,9 +17,6 @@ class LLMClient:
         self.model = "gpt-4o-mini" # 모델명을 원하는 대로 설정할 수 있습니다.
 
     def _send_request(self, prompt: str, retries=5, delay=10) -> str:
-        """
-        주어진 프롬프트를 API에 전송하고, 재시도 로직을 포함하여 응답을 받습니다.
-        """
         for i in range(retries):
             try:
                 response = self.client.chat.completions.create(
@@ -35,6 +29,7 @@ class LLMClient:
                 print(f"LLM API 호출 중 오류 발생: {e}. {delay}초 후 재시도합니다... ({i+1}/{retries})")
                 time.sleep(delay)
         raise RuntimeError("LLM API 호출에 최종적으로 실패했습니다.")
+    
 
     def _parse_json_from_response(self, response_text: str) -> Dict[str, Any]:
         """LLM 응답에서 JSON 코드 블록을 추출하고 파싱합니다."""
@@ -201,6 +196,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
