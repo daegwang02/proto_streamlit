@@ -11,7 +11,7 @@ from agents.advisory_agent import AdvisoryAgent
 from clients.llm_client import LLMClient
 from clients.database_client import DatabaseClient
 from clients.backtester_client import BacktesterClient
-
+from optimizer.hyperparameter_optimizer import HyperparameterOptimizer 
 # --- 2. 설정 파일 import ---
 # config 파일은 더 이상 사용하지 않으므로 import를 제거합니다.
 
@@ -215,4 +215,5 @@ with st.expander("🔍 전체 분석 과정 로그 보기"):
     st.dataframe(st.session_state.db.hypotheses if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.factors if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.evaluations if st.session_state.db else pd.DataFrame(), use_container_width=True)
+
 
