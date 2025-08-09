@@ -284,8 +284,8 @@ with st.sidebar:
     discovery_rounds = st.number_input(
         "🔄 알파 탐색 라운드 수",
         min_value=1,
-        max_value=10,
-        value=3
+        max_value=20,
+        value=5
     )
 
     run_optimization = st.checkbox("🧠 하이퍼파라미터 최적화 실행", value=False)
@@ -298,7 +298,7 @@ with st.sidebar:
 st.write("### AI 투자 아이디어 입력")
 user_idea = st.text_area(
     "어떤 투자 아이디어를 탐색하고 싶으신가요?",
-    "거래량이 급증하며 가격을 돌파하는 주식",
+    "최근 3개월간 꾸준히 상승 추세를 보였으나, 단기적인 과열 신호(예: RSI 70 이상)가 없는 주식. 동시에 기업 가치 대비 저평가되어 있는 종목을 찾고 싶습니다",
     height=80
 )
 
@@ -396,6 +396,7 @@ if start_button:
             else:
                 st.error("분석을 통해 유의미한 팩터를 찾지 못했습니다.")
                 status.update(label="분석 실패.", state="error")
+
 
 
 
