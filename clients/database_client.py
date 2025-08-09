@@ -7,12 +7,12 @@ class DatabaseClient:
     """
     생성된 가설, 팩터, 평가 결과를 인메모리에서 관리하는 간소화된 데이터베이스 클라이언트입니다.
     """
-    def __init__(self):
-        self.hypotheses = pd.DataFrame(columns=['id', 'hypothesis_text', 'data', 'status'])
-        self.factors = pd.DataFrame(columns=['id', 'hypothesis_id', 'description', 'formula', 'ast', 'complexity_sl', 'complexity_pc', 'originality_score', 'alignment_score', 'status'])
-        self.evaluations = pd.DataFrame(columns=['factor_id', 'ic', 'rank_ic', 'icir', 'ar', 'ir', 'mdd'])
-        self._hypothesis_id_counter = 0
-        self._factor_id_counter = 0
+    def __init__(self, data_url: str, transaction_fee_buy: float = 0.0005, transaction_fee_sell: float = 0.0015):
+        self.data_url = data_url
+        self.transaction_fee_buy = transaction_fee_buy
+        self.transaction_fee_sell = transaction_fee_sell
+        self.data_cache = None
+        self.factor_cache = {}
 
     def save_hypothesis(self, data: Dict[str, Any]) -> int:
         """새로운 가설을 저장합니다."""
@@ -117,4 +117,5 @@ class DatabaseClient:
             summary_parts.append("- 아직 유의미한 실패 사례가 없습니다.")
 
         return "\n".join(summary_parts)
+
 
