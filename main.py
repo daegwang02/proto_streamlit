@@ -234,44 +234,14 @@ from clients.backtester_client import BacktesterClient
 from optimizer.hyperparameter_optimizer import HyperparameterOptimizer # 추가
 # import config # config.py 파일은 Secrets로 대체되었으므로 주석 처리
 
-# # --- 2. 페이지 디자인 및 구성 ---
-# st.set_page_config(
-#     page_title="Vibe Quant",
-#     page_icon="📈",
-#     layout="wide",
-#     initial_sidebar_state="expanded"
-# )
-
-# st.markdown("""
-#     <style>
-#     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
-    
-#     html, body, [class*="st-"] { font-family: 'Noto Sans KR', sans-serif; }
-#     .main-header h1 { color: #FFC107; text-align: center; font-size: 2.5rem; font-weight: 700; margin-bottom: 0; }
-#     .stButton>button { background-color: #FFC107; color: black; border-radius: 8px; font-weight: 700; border: none; }
-#     .stButton>button:hover { background-color: #E6B800; }
-#     .stMetric > div { background-color: #f7f7f7; padding: 1.5rem; border-radius: 8px; border: 1px solid #ddd; }
-#     .stMetric label { font-size: 1rem; color: #666; font-weight: normal; }
-#     .stMetric p { font-size: 1.5rem; font-weight: 700; margin-top: 0.5rem; }
-#     .report-header { color: #FFC107; font-weight: 700; border-bottom: 2px solid #FFC107; padding-bottom: 0.5rem; }
-#     .stCodeBlock pre { background-color: #f0f0f0; border-left: 5px solid #FFC107; }
-#     .streamlit-expander { border-left: 5px solid #FFC107; border-radius: 8px; }
-#     </style>
-#     <div class="main-header">
-#         <h1>🤖 Vibe Quant</h1>
-#     </div>
-#     <br>
-#     """, unsafe_allow_html=True)
-
 # --- 2. 페이지 디자인 및 구성 ---
 st.set_page_config(
     page_title="Vibe Quant",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="collapsed" # ⚠️ 사이드바를 기본적으로 숨기도록 변경
+    initial_sidebar_state="expanded"
 )
 
-# 사용자 정의 CSS
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
@@ -288,10 +258,11 @@ st.markdown("""
     .streamlit-expander { border-left: 5px solid #FFC107; border-radius: 8px; }
     </style>
     <div class="main-header">
-        <h1>🤖 Vibe Quant: KB 금융 AI 투자 전략 탐색기</h1>
+        <h1>🤖 Vibe Quant</h1>
     </div>
     <br>
     """, unsafe_allow_html=True)
+
 
 
 # --- 3. 세션 상태 초기화 ---
@@ -427,6 +398,7 @@ if start_button:
             else:
                 st.error("분석을 통해 유의미한 팩터를 찾지 못했습니다.")
                 status.update(label="분석 실패.", state="error")
+
 
 
 
