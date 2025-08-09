@@ -1,7 +1,7 @@
 # main.py (Streamlit UI 통합 최종 버전)
 import streamlit as st
 import pandas as pd
-import np
+import numpy as np
 
 # --- 1. 최종 코드의 모든 모듈 및 클래스 import ---
 from agents.idea_agent import IdeaAgent
@@ -215,3 +215,4 @@ with st.expander("🔍 전체 분석 과정 로그 보기"):
     st.dataframe(st.session_state.db.hypotheses if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.factors if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.evaluations if st.session_state.db else pd.DataFrame(), use_container_width=True)
+
