@@ -242,7 +242,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 사용자 정의 CSS
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
@@ -269,6 +268,7 @@ if 'agents' not in st.session_state: st.session_state.agents = None
 if 'db' not in st.session_state: st.session_state.db = None
 if 'final_report' not in st.session_state: st.session_state.final_report = None
 if 'best_factor_info' not in st.session_state: st.session_state.best_factor_info = None
+if 'analysis_done' not in st.session_state: st.session_state.analysis_done = False
 
 # --- 4. 사이드바 (설정) ---
 with st.sidebar:
@@ -305,6 +305,7 @@ user_idea = st.text_area(
 # 분석 시작 버튼이 눌렸을 때 전체 워크플로우 실행
 if start_button:
     # 세션 상태 초기화
+    st.session_state.analysis_done = True
     st.session_state.final_report = None
     st.session_state.best_factor_info = None
 
@@ -392,6 +393,7 @@ if start_button:
             else:
                 st.error("분석을 통해 유의미한 팩터를 찾지 못했습니다.")
                 status.update(label="분석 실패.", state="error")
+
 
 
 
