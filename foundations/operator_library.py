@@ -1,339 +1,1679 @@
-# app.py (최종 수정 완료 버전)
+# foundations/operator_library.py
 
-import streamlit as st
-import os
-import pandas as pd
+from __future__ import division
+from __future__ import print_function
+
 import numpy as np
-import json
-import re
-from openai import OpenAI
-import ast
-import lightgbm as lgb
-import logging
-import time
+import pandas as pd
 
-# --- 0. Streamlit 페이지 설정 및 로깅 ---
-st.set_page_config(page_title="AlphaAgent", page_icon="🤖", layout="wide")
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+from typing import Union, List, Type
+from scipy.stats import percentileofscore
+from .base import Expression, ExpressionOps, Feature, PFeature
+from ..log import get_module_logger
+from ..utils import get_callable_kwargs
 
-
-# --- 1. OpenAI API 키 설정 ---
 try:
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-    logging.info("OpenAI API 키를 Streamlit secrets에서 로드했습니다.")
-except (KeyError, FileNotFoundError):
-    logging.warning("Streamlit secrets에 OPENAI_API_KEY가 없습니다. 로컬 테스트를 위해 입력을 받습니다.")
-    openai_api_key = st.text_input("OpenAI API Key를 입력하세요.", type="password", key="api_key_input")
-    if openai_api_key:
-        client = OpenAI(api_key=openai_api_key)
-    else:
-        st.info("AI 기능을 사용하려면 좌측 사이드바에서 OpenAI API 키를 입력해주세요.")
-        st.stop()
+    from ._libs.rolling import rolling_slope, rolling_rsquare, rolling_resi
+    from ._libs.expanding import expanding_slope, expanding_rsquare, expanding_resi
+except ImportError:
+    print(
+        "#### Do not import qlib package in the repository directory in case of importing qlib from . without compiling #####"
+    )
+    raise
+except ValueError:
+    print("!!!!!!!! A error occurs when importing operators implemented based on Cython.!!!!!!!!")
+    print("!!!!!!!! They will be disabled. Please Upgrade your numpy to enable them     !!!!!!!!")
+    # We catch this error because some platform can't upgrade there package (e.g. Kaggle)
+    # https://www.kaggle.com/general/293387
+    # https://www.kaggle.com/product-feedback/98562
 
-# --- 2. 핵심 로직 함수 및 클래스 (수정 없음) ---
-# 이 부분은 사용자님의 원본 코드를 그대로 유지합니다.
 
-# ===================================================================================
-# [수정된 부분 1/2] 데이터 로딩 함수를 훨씬 더 간단하고 효율적으로 변경했습니다.
-# ===================================================================================
-@st.cache_data(ttl=3600) # 데이터 로딩 결과를 1시간 동안 캐싱
-def load_pivoted_data(file_path: str):
+np.seterr(invalid="ignore")
+
+
+#################### Element-Wise Operator ####################
+class ElemOperator(ExpressionOps):
+    """Element-wise Operator
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+
+    Returns
+    ----------
+    Expression
+        feature operation output
     """
-    프로젝트 폴더 내에 있는 단일 데이터 파일(CSV)을 읽어 피벗 데이터로 변환합니다.
+
+    def __init__(self, feature):
+        self.feature = feature
+
+    def __str__(self):
+        return "{}({})".format(type(self).__name__, self.feature)
+
+    def get_longest_back_rolling(self):
+        return self.feature.get_longest_back_rolling()
+
+    def get_extended_window_size(self):
+        return self.feature.get_extended_window_size()
+
+
+class ChangeInstrument(ElemOperator):
+    """Change Instrument Operator
+    In some case, one may want to change to another instrument when calculating, for example, to
+    calculate beta of a stock with respect to a market index.
+    This would require changing the calculation of features from the stock (original instrument) to
+    the index (reference instrument)
+    Parameters
+    ----------
+    instrument: new instrument for which the downstream operations should be performed upon.
+                i.e., SH000300 (CSI300 index), or ^GPSC (SP500 index).
+
+    feature: the feature to be calculated for the new instrument.
+    Returns
+    ----------
+    Expression
+        feature operation output
     """
-    logging.info(f"데이터 파일 로딩 시작: {file_path}")
-    try:
-        # GitHub에 함께 올린 CSV 파일을 직접 읽습니다.
-        df = pd.read_csv(file_path)
-    except FileNotFoundError:
-        st.error(f"데이터 파일 '{file_path}'을(를) 찾을 수 없습니다. app.py와 같은 폴더에 파일이 있는지, GitHub에 함께 업로드했는지 확인해주세요.")
-        return None
 
-    # 데이터 전처리 (파일에 '날짜' 컬럼이 없는 경우를 대비하여 이름 변경)
-    if '날짜' in df.columns:
-        df = df.rename(columns={'날짜': 'date'})
-        
-    df['date'] = pd.to_datetime(df['date'])
-    df = df.sort_values(by=['date', 'symbol']).reset_index(drop=True)
-    
-    pivoted_data = {}
-    # 'open', 'high', 'low', 'close', 'volume' 컬럼이 있는지 확인하고 피벗
-    for col in ['open', 'high', 'low', 'close', 'volume']:
-        if col in df.columns:
-            pivoted = df.pivot(index='date', columns='symbol', values=col)
-            pivoted_data[col] = pivoted.ffill().bfill() # 결측치 처리
-    
-    if 'close' not in pivoted_data:
-        st.error("피벗 데이터 생성에 실패했습니다. 원본 데이터에 'close'와 'symbol' 컬럼이 있는지 확인해주세요.")
-        return None
-        
-    logging.info(f"📊 총 {len(pivoted_data['close'].columns)}개 종목의 피벗 데이터 로딩 완료")
-    return pivoted_data
+    def __init__(self, instrument, feature):
+        self.instrument = instrument
+        self.feature = feature
 
-# (OPERATORS, execute_expression, prepare_base_features, AlphaZoo, QualityGate 등 모든 핵심 함수/클래스 그대로 붙여넣기)
-OPERATORS = {'ts_mean': lambda df, window: df.rolling(window, min_periods=max(1, window//2)).mean(),'ts_std': lambda df, window: df.rolling(window, min_periods=max(1, window//2)).std(),'ts_rank': lambda df, window: df.rolling(window, min_periods=max(1, window//2)).rank(pct=True),'delay': lambda df, period: df.shift(period),'delta': lambda df, period: df.diff(period),'rank': lambda df: df.rank(axis=1, pct=True),'scale': lambda df: df.div(df.abs().sum(axis=1), axis=0),'add': lambda a, b: a + b,'subtract': lambda a, b: a - b,'multiply': lambda a, b: a * b,'divide': lambda a, b: a / b.replace(0, np.nan),'negate': lambda a: -a,'abs': lambda a: a.abs()}
-def execute_expression(expression: str, data: dict):
-    local_data = {k: v.copy() for k, v in data.items()}
-    while '(' in expression:
-        match = re.search(r"(\w+)\(([^()]+)\)", expression)
-        if not match:
-            if expression in local_data: return local_data[expression]
-            raise ValueError(f"잘못된 수식 형식: {expression}")
-        op_name, args_str = match.groups()
-        args = [arg.strip() for arg in args_str.split(',')]
-        evaluated_args = []
-        for arg in args:
-            if arg.isdigit(): evaluated_args.append(int(arg))
-            elif arg in local_data: evaluated_args.append(local_data[arg])
-            else: raise ValueError(f"알 수 없는 인자 '{arg}' (수식: {expression})")
-        if op_name in OPERATORS:
-            temp_var_name = f"temp_{abs(hash(match.group(0)))}"
-            local_data[temp_var_name] = OPERATORS[op_name](*evaluated_args)
-            expression = expression.replace(match.group(0), temp_var_name, 1)
-        else: raise ValueError(f"알 수 없는 연산자: {op_name}")
-    if expression in local_data: return local_data[expression]
-    else: raise ValueError("최종 결과를 찾을 수 없습니다.")
+    def __str__(self):
+        return "{}('{}',{})".format(type(self).__name__, self.instrument, self.feature)
 
-def prepare_base_features(pivoted_data: dict) -> dict:
-    logging.info("... 기본 팩터(Base Features) 생성 중 ...")
-    data_copy = {k: v.copy() for k, v in pivoted_data.items()}
-    pivoted_data['base_1'] = execute_expression("divide(subtract(close, open), open)", data_copy)
-    pivoted_data['base_2'] = execute_expression("subtract(divide(close, delay(close, 1)), 1)", data_copy)
-    pivoted_data['base_3'] = execute_expression("divide(volume, ts_mean(volume, 20))", data_copy)
-    pivoted_data['base_4'] = execute_expression("divide(subtract(high, low), close)", data_copy)
-    logging.info("✅ 기본 팩터 4개 생성 완료.")
-    return pivoted_data
-    
-class AlphaZoo:
-    def __init__(self): self.known_factors = {"ts_mean(close, 20)", "ts_std(close, 20)", "rank(volume)"}
-    def add_factor(self, expression: str): self.known_factors.add(expression)
-    def get_all_factors(self) -> set: return self.known_factors
+    def load(self, instrument, start_index, end_index, *args):
+        # the first `instrument` is ignored
+        return super().load(self.instrument, start_index, end_index, *args)
 
-class QualityGate:
-    def __init__(self, alpha_zoo: AlphaZoo, client: OpenAI):
-        self.alpha_zoo, self.client = alpha_zoo, client
-        self.COMPLEXITY_THRESHOLD, self.ORIGINALITY_THRESHOLD, self.ALIGNMENT_THRESHOLD = 15, 0.9, 0.6
-    def _calculate_complexity(self, expression: str) -> int:
-        try: return sum(1 for node in ast.walk(ast.parse(expression)) if isinstance(node, (ast.Call, ast.Num, ast.Constant)))
-        except: return float('inf')
-    def _calculate_originality(self, expression: str) -> float:
-        new_ops, max_similarity = set(re.findall(r'(\w+)\(', expression)), 0
-        for known_expr in self.alpha_zoo.get_all_factors():
-            known_ops = set(re.findall(r'(\w+)\(', known_expr))
-            if not new_ops and not known_ops: continue
-            intersection, union = len(new_ops.intersection(known_ops)), len(new_ops.union(known_ops))
-            similarity = intersection / union if union > 0 else 0
-            if similarity > max_similarity: max_similarity = similarity
-        return max_similarity
-    def _check_alignment(self, hypothesis: str, factor_expression: str) -> float:
-        prompt = f"다음 '가설'과 '팩터 수식'의 논리적 일치도를 0.0에서 1.0 사이의 점수로만 평가해줘.\n- 가설: \"{hypothesis}\"\n- 팩터 수식: \"{factor_expression}\""
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        return self.feature.load(instrument, start_index, end_index, *args)
+
+
+class NpElemOperator(ElemOperator):
+    """Numpy Element-wise Operator
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    func : str
+        numpy feature operation method
+
+    Returns
+    ----------
+    Expression
+        feature operation output
+    """
+
+    def __init__(self, feature, func):
+        self.func = func
+        super(NpElemOperator, self).__init__(feature)
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        return getattr(np, self.func)(series)
+
+
+class Abs(NpElemOperator):
+    """Feature Absolute Value
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+
+    Returns
+    ----------
+    Expression
+        a feature instance with absolute output
+    """
+
+    def __init__(self, feature):
+        super(Abs, self).__init__(feature, "abs")
+
+
+class Sign(NpElemOperator):
+    """Feature Sign
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+
+    Returns
+    ----------
+    Expression
+        a feature instance with sign
+    """
+
+    def __init__(self, feature):
+        super(Sign, self).__init__(feature, "sign")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        """
+        To avoid error raised by bool type input, we transform the data into float32.
+        """
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        # TODO:  More precision types should be configurable
+        series = series.astype(np.float32)
+        return getattr(np, self.func)(series)
+
+
+class Log(NpElemOperator):
+    """Feature Log
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+
+    Returns
+    ----------
+    Expression
+        a feature instance with log
+    """
+
+    def __init__(self, feature):
+        super(Log, self).__init__(feature, "log")
+
+
+class Mask(NpElemOperator):
+    """Feature Mask
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    instrument : str
+        instrument mask
+
+    Returns
+    ----------
+    Expression
+        a feature instance with masked instrument
+    """
+
+    def __init__(self, feature, instrument):
+        super(Mask, self).__init__(feature, "mask")
+        self.instrument = instrument
+
+    def __str__(self):
+        return "{}({},{})".format(type(self).__name__, self.feature, self.instrument.lower())
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        return self.feature.load(self.instrument, start_index, end_index, *args)
+
+
+class Not(NpElemOperator):
+    """Not Operator
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        feature elementwise not output
+    """
+
+    def __init__(self, feature):
+        super(Not, self).__init__(feature, "bitwise_not")
+
+
+#################### Pair-Wise Operator ####################
+class PairOperator(ExpressionOps):
+    """Pair-wise operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance or numeric value
+    feature_right : Expression
+        feature instance or numeric value
+
+    Returns
+    ----------
+    Feature:
+        two features' operation output
+    """
+
+    def __init__(self, feature_left, feature_right):
+        self.feature_left = feature_left
+        self.feature_right = feature_right
+
+    def __str__(self):
+        return "{}({},{})".format(type(self).__name__, self.feature_left, self.feature_right)
+
+    def get_longest_back_rolling(self):
+        if isinstance(self.feature_left, (Expression,)):
+            left_br = self.feature_left.get_longest_back_rolling()
+        else:
+            left_br = 0
+
+        if isinstance(self.feature_right, (Expression,)):
+            right_br = self.feature_right.get_longest_back_rolling()
+        else:
+            right_br = 0
+        return max(left_br, right_br)
+
+    def get_extended_window_size(self):
+        if isinstance(self.feature_left, (Expression,)):
+            ll, lr = self.feature_left.get_extended_window_size()
+        else:
+            ll, lr = 0, 0
+
+        if isinstance(self.feature_right, (Expression,)):
+            rl, rr = self.feature_right.get_extended_window_size()
+        else:
+            rl, rr = 0, 0
+        return max(ll, rl), max(lr, rr)
+
+
+class NpPairOperator(PairOperator):
+    """Numpy Pair-wise operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance or numeric value
+    feature_right : Expression
+        feature instance or numeric value
+    func : str
+        operator function
+
+    Returns
+    ----------
+    Feature:
+        two features' operation output
+    """
+
+    def __init__(self, feature_left, feature_right, func):
+        self.func = func
+        super(NpPairOperator, self).__init__(feature_left, feature_right)
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        assert any(
+            [isinstance(self.feature_left, (Expression,)), self.feature_right, Expression]
+        ), "at least one of two inputs is Expression instance"
+        if isinstance(self.feature_left, (Expression,)):
+            series_left = self.feature_left.load(instrument, start_index, end_index, *args)
+        else:
+            series_left = self.feature_left  # numeric value
+        if isinstance(self.feature_right, (Expression,)):
+            series_right = self.feature_right.load(instrument, start_index, end_index, *args)
+        else:
+            series_right = self.feature_right
+        check_length = isinstance(series_left, (np.ndarray, pd.Series)) and isinstance(
+            series_right, (np.ndarray, pd.Series)
+        )
+        if check_length:
+            warning_info = (
+                f"Loading {instrument}: {str(self)}; np.{self.func}(series_left, series_right), "
+                f"The length of series_left and series_right is different: ({len(series_left)}, {len(series_right)}), "
+                f"series_left is {str(self.feature_left)}, series_right is {str(self.feature_right)}. Please check the data"
+            )
+        else:
+            warning_info = (
+                f"Loading {instrument}: {str(self)}; np.{self.func}(series_left, series_right), "
+                f"series_left is {str(self.feature_left)}, series_right is {str(self.feature_right)}. Please check the data"
+            )
         try:
-            response = self.client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], temperature=0.0)
-            return float(response.choices[0].message.content.strip())
-        except Exception as e:
-            logging.error(f"정합성 평가 API 호출 오류: {e}")
-            return 0.0
-    def validate(self, hypothesis: str, factor: dict) -> (bool, str):
-        expression = factor['expression']
-        complexity = self._calculate_complexity(expression)
-        if complexity > self.COMPLEXITY_THRESHOLD: return False, f"복잡도 초과 ({complexity}/{self.COMPLEXITY_THRESHOLD})"
-        similarity = self._calculate_originality(expression)
-        if similarity > self.ORIGINALITY_THRESHOLD: return False, f"독창성 부족 (유사도 {similarity:.2f})"
-        alignment_score = self._check_alignment(hypothesis, expression)
-        if alignment_score < self.ALIGNMENT_THRESHOLD: return False, f"정합성 부족 (점수 {alignment_score:.2f})"
-        return True, "품질 검사 통과"
+            res = getattr(np, self.func)(series_left, series_right)
+        except ValueError as e:
+            get_module_logger("ops").debug(warning_info)
+            raise ValueError(f"{str(e)}. \n\t{warning_info}") from e
+        else:
+            if check_length and len(series_left) != len(series_right):
+                get_module_logger("ops").debug(warning_info)
+        return res
 
-def generate_market_hypothesis(seed: str, feedback_history: list) -> str:
-    system_prompt = "당신은 주식 시장을 분석하는 퀀트 분석가입니다. 주어진 테마나 이전의 성공/실패 경험을 바탕으로, 검증 가능한 새로운 정량적 투자 가설을 한 문장으로 생성해주세요."
-    user_content = f"테마: {seed}"
-    if feedback_history:
-        recent_feedback = "\n".join(feedback_history[-3:])
-        user_content += f"\n\n이전 시도에 대한 피드백입니다:\n{recent_feedback}\n\n이 피드백을 바탕으로 기존 아이디어를 개선하거나 완전히 새로운 방향의 가설을 제시해주세요."
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], temperature=0.7)
-    return response.choices[0].message.content.strip()
 
-def generate_alpha_expression(hypothesis: str) -> dict:
-    available_ops = ", ".join(OPERATORS.keys())
-    system_prompt = f"너는 알파 팩터 생성 AI야. 반드시 아래 JSON 형식과 주어진 표준 연산자만을 사용해야 한다.\n{{ \"description\": \"...\", \"expression\": \"...\" }}\n---\n[사용 가능 연산자] {available_ops}\n[사용 가능 데이터] open, high, low, close, volume\n[규칙] 함수 형태로 작성. 예: rank(subtract(ts_mean(close, 20), ts_mean(close, 60)))\n---"
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": f"가설: {hypothesis}"}], temperature=0.2)
-    raw_response = response.choices[0].message.content.strip()
-    match = re.search(r'\{.*\}', raw_response, re.DOTALL)
-    if match: return json.loads(match.group(0))
-    else: raise ValueError(f"JSON 파싱 오류: {raw_response}")
+class Power(NpPairOperator):
+    """Power Operator
 
-def evaluate_factor_with_lgbm(new_factor_values: pd.DataFrame, data: dict):
-    LOOKBACK_WINDOW = 252
-    feature_names = ['base_1', 'base_2', 'base_3', 'base_4']
-    features = {name: data[name] for name in feature_names}
-    features['new_factor'] = new_factor_values
-    feature_dfs = [df.stack().rename(name) for name, df in features.items()]
-    master_df = pd.concat(feature_dfs, axis=1)
-    target = data['close'].pct_change().shift(-1).stack().rename('target')
-    master_df = master_df.join(target, how='inner').dropna()
-    if master_df.empty: return {'success': False, 'error': '피처와 타겟 결합 후 데이터가 없습니다.'}
-    all_predictions = []
-    unique_dates = master_df.index.get_level_values('date').unique().sort_values()
-    
-    progress_bar = st.progress(0, text="모델 백테스팅 진행 중...")
-    
-    for i in range(LOOKBACK_WINDOW, len(unique_dates)):
-        train_start_date, train_end_date, test_date = unique_dates[i - LOOKBACK_WINDOW], unique_dates[i - 1], unique_dates[i]
-        train_slice, test_slice = master_df.loc[train_start_date:train_end_date], master_df.loc[test_date:test_date]
-        if train_slice.empty or test_slice.empty: continue
-        X_train, y_train = train_slice.drop('target', axis=1), train_slice['target']
-        X_test, y_test = test_slice.drop('target', axis=1), test_slice['target']
-        lgbm = lgb.LGBMRegressor(random_state=42, n_jobs=-1, n_estimators=100)
-        lgbm.fit(X_train, y_train, eval_set=[(X_test, y_test)], callbacks=[lgb.early_stopping(5, verbose=False)])
-        predictions = pd.Series(lgbm.predict(X_test), index=X_test.index)
-        all_predictions.append(predictions)
-        
-        progress_bar.progress((i - LOOKBACK_WINDOW + 1) / (len(unique_dates) - LOOKBACK_WINDOW), text=f"모델 백테스팅 진행 중... ({test_date.strftime('%Y-%m-%d')})")
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
 
-    progress_bar.empty()
-        
-    if not all_predictions: return {'success': False, 'error': '롤링 예측 결과가 없습니다.'}
-    alpha_scores = pd.concat(all_predictions).unstack()
-    future_returns = data['close'].pct_change().shift(-1)
-    aligned_scores, aligned_returns = alpha_scores.align(future_returns, join='inner')
-    if aligned_scores.empty: return {'success': False, 'error': '모델 예측값과 수익률 정렬 실패.'}
-    long_mask, short_mask = aligned_scores.rank(axis=1, pct=True) > 0.8, aligned_scores.rank(axis=1, pct=True) < 0.2
-    long_returns, short_returns = aligned_returns[long_mask].mean(axis=1), aligned_returns[short_mask].mean(axis=1)
-    strategy_returns = long_returns - short_returns
-    sharpe_ratio = strategy_returns.mean() / strategy_returns.std() * np.sqrt(252) if strategy_returns.std() > 0 else 0
-    annual_return = strategy_returns.mean() * 252
-    cumulative_returns = (1 + strategy_returns).cumprod()
-    mdd = (cumulative_returns.cummax() - cumulative_returns).max()
-    return {'success': True, 'sharpe_ratio': sharpe_ratio, 'annual_return': annual_return, 'mdd': mdd, 'cumulative_returns': cumulative_returns}
-
-def generate_seed_from_user_idea(user_input: str) -> str:
-    system_prompt = """
-    당신은 월스트리트의 최고 퀀트 분석가이자, 초보 투자자들이 아이디어를 구체화하도록 돕는 친절한 어드바이저입니다.
-    사용자의 대화나 단편적인 아이디어에서 핵심을 파악하여, AlphaAgent가 사용할 수 있는 정량적 투자 '시드(seed) 가설'을 한 문장으로 정제해야 합니다.
+    Returns
+    ----------
+    Feature:
+        The bases in feature_left raised to the exponents in feature_right
     """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_input}], temperature=0.1)
-    return response.choices[0].message.content.strip()
 
-# ===================================================================================
-# [수정된 부분 2/2] 절대 경로 대신, 파일 이름을 직접 전달하도록 변경했습니다.
-# ===================================================================================
-# --- 3. 데이터 로딩 (앱 시작 시 한 번만 실행) ---
-pivoted_data = load_pivoted_data("ohlcv_data.csv")
-if pivoted_data:
-    pivoted_data = prepare_base_features(pivoted_data)
-else:
-    # load_pivoted_data 함수 내부에서 이미 에러 메시지를 보여주므로 st.stop()만 호출
-    st.stop()
+    def __init__(self, feature_left, feature_right):
+        super(Power, self).__init__(feature_left, feature_right, "power")
 
 
-# --- 4. Streamlit UI 구성 (수정 없음, 기존 코드와 동일) ---
-st.title("🤖 AlphaAgent: 나만의 투자 전략 자동 탐색")
-st.markdown("아이디어를 입력하면, AI가 자율적으로 분석하여 최적의 투자 팩터(Alpha Factor)를 찾아드립니다.")
+class Add(NpPairOperator):
+    """Add Operator
 
-if 'best_factor' not in st.session_state:
-    st.session_state.best_factor = {'sharpe': -np.inf}
-if 'log_messages' not in st.session_state:
-    st.session_state.log_messages = []
-if 'analysis_done' not in st.session_state:
-    st.session_state.analysis_done = False
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
 
-st.subheader("1. 아이디어 입력 및 설정")
-with st.form("input_form"):
-    user_idea = st.text_area("어떤 투자 전략을 찾아볼까요?", "조용하던 주식이 갑자기 확 튀는 현상", height=100)
-    num_iterations = st.number_input("몇 번의 시도를 통해 전략을 개선할까요?", min_value=1, max_value=20, value=5)
-    start_button = st.form_submit_button("✨ 자율 분석 시작!")
+    Returns
+    ----------
+    Feature:
+        two features' sum
+    """
 
-if start_button:
-    st.session_state.analysis_done = True
-    st.session_state.log_messages = []
-    st.session_state.best_factor = {'sharpe': -np.inf}
+    def __init__(self, feature_left, feature_right):
+        super(Add, self).__init__(feature_left, feature_right, "add")
 
-    with st.status("1. AI가 아이디어를 전문가 수준의 가설로 다듬는 중...", expanded=True) as status:
-        try:
-            refined_seed = generate_seed_from_user_idea(user_idea)
-            st.write(f"**정제된 가설:** *{refined_seed}*")
-            status.update(label="✅ 아이디어 정제 완료!", state="complete")
-        except Exception as e:
-            st.error(f"아이디어 정제 실패: {e}")
-            st.stop()
-    
-    log_container = st.container()
-    feedback_history = []
-    alpha_zoo = AlphaZoo()
 
-    for i in range(1, num_iterations + 1):
-        with st.status(f"2. 자율 분석 진행 중... [반복 {i}/{num_iterations}]", expanded=True) as status:
-            try:
-                hypothesis = generate_market_hypothesis(refined_seed, feedback_history)
-                st.write(f"🧠 **생성된 가설:** {hypothesis}")
-                
-                factor = generate_alpha_expression(hypothesis)
-                st.write(f"📝 **생성된 팩터:** `{factor['expression']}`")
-                
-                is_valid, reason = QualityGate(alpha_zoo, client).validate(hypothesis, factor)
-                if not is_valid:
-                    raise ValueError(f"품질 검사 실패: {reason}")
-                
-                factor_values = execute_expression(factor['expression'], pivoted_data)
-                result = evaluate_factor_with_lgbm(factor_values, pivoted_data)
-                
-                if result['success']:
-                    sharpe = result['sharpe_ratio']
-                    feedback = f"반복 {i}: 팩터 '{factor['expression']}' -> Sharpe: {sharpe:.2f}."
-                    feedback_history.append(feedback)
-                    alpha_zoo.add_factor(factor['expression'])
-                    
-                    st.session_state.log_messages.append({
-                        "iteration": i, "success": True, "hypothesis": hypothesis, 
-                        "expression": factor['expression'], "sharpe": sharpe, "result": result
-                    })
+class Sub(NpPairOperator):
+    """Subtract Operator
 
-                    if sharpe > st.session_state.best_factor['sharpe']:
-                        st.session_state.best_factor = {
-                            'sharpe': sharpe, 'description': factor['description'], 
-                            'expression': factor['expression'], 'result': result
-                        }
-                    
-                    status.update(label=f"✅ 반복 {i} 성공! (Sharpe: {sharpe:.2f})", state="complete")
-                else:
-                    raise ValueError(f"모델 평가 실패: {result['error']}")
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
 
-            except Exception as e:
-                feedback = f"반복 {i}: 실패. ({str(e)})"
-                feedback_history.append(feedback)
-                st.session_state.log_messages.append({"iteration": i, "success": False, "error": str(e)})
-                status.update(label=f"❌ 반복 {i} 실패", state="error")
+    Returns
+    ----------
+    Feature:
+        two features' subtraction
+    """
 
-    st.balloons()
+    def __init__(self, feature_left, feature_right):
+        super(Sub, self).__init__(feature_left, feature_right, "subtract")
 
-if st.session_state.analysis_done:
-    st.subheader("3. 분석 결과")
 
-    best = st.session_state.best_factor
-    if best['sharpe'] > -np.inf:
-        st.success(f"🎉 **최고의 전략을 찾았습니다!** (Sharpe Ratio: {best['sharpe']:.3f})")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("연간 수익률", f"{best['result']['annual_return'] * 100:.2f} %")
-            st.metric("최대 낙폭 (MDD)", f"{best['result']['mdd'] * 100:.2f} %")
-        
-        with col2:
-            st.write("**📝 팩터 설명**")
-            st.info(f"{best['description']}")
-            st.write("**⚙️ 팩터 수식**")
-            st.code(f"{best['expression']}", language="python")
+class Mul(NpPairOperator):
+    """Multiply Operator
 
-        st.line_chart(best['result']['cumulative_returns'])
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
 
-    else:
-        st.error("유의미한 전략을 찾지 못했습니다. 아이디어를 바꿔 다시 시도해보세요.")
+    Returns
+    ----------
+    Feature:
+        two features' product
+    """
 
-    with st.expander("🔍 전체 분석 과정 로그 보기"):
-        for log in st.session_state.log_messages:
-            if log['success']:
-                st.markdown(f"--- \n**[성공] 반복 #{log['iteration']} | Sharpe: {log['sharpe']:.3f}**")
-                st.text(f"가설: {log['hypothesis']}")
-                st.code(f"수식: {log['expression']}", language="python")
+    def __init__(self, feature_left, feature_right):
+        super(Mul, self).__init__(feature_left, feature_right, "multiply")
+
+
+class Div(NpPairOperator):
+    """Division Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        two features' division
+    """
+
+    def __init__(self, feature_left, feature_right):
+        super(Div, self).__init__(feature_left, feature_right, "divide")
+
+
+class Greater(NpPairOperator):
+    """Greater Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        greater elements taken from the input two features
+    """
+
+    def __init__(self, feature_left, feature_right):
+        super(Greater, self).__init__(feature_left, feature_right, "maximum")
+
+
+class Less(NpPairOperator):
+    """Less Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        smaller elements taken from the input two features
+    """
+
+    def __init__(self, feature_left, feature_right):
+        super(Less, self).__init__(feature_left, feature_right, "minimum")
+
+
+class Gt(NpPairOperator):
+    """Greater Than Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        bool series indicate `left > right`
+    """
+
+    def __init__(self, feature_left, feature_right):
+        super(Gt, self).__init__(feature_left, feature_right, "greater")
+
+
+class Ge(NpPairOperator):
+    """Greater Equal Than Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        bool series indicate `left >= right`
+    """
+
+    def __init__(self, feature_left, feature_right):
+        super(Ge, self).__init__(feature_left, feature_right, "greater_equal")
+
+
+class Lt(NpPairOperator):
+    """Less Than Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        bool series indicate `left < right`
+    """
+
+    def __init__(self, feature_left, feature_right):
+        super(Lt, self).__init__(feature_left, feature_right, "less")
+
+
+class Le(NpPairOperator):
+    """Less Equal Than Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        bool series indicate `left <= right`
+    """
+
+    def __init__(self, feature_left, feature_right):
+        super(Le, self).__init__(feature_left, feature_right, "less_equal")
+
+
+class Eq(NpPairOperator):
+    """Equal Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        bool series indicate `left == right`
+    """
+
+    def __init__(self, feature_left, feature_right):
+        super(Eq, self).__init__(feature_left, feature_right, "equal")
+
+
+class Ne(NpPairOperator):
+    """Not Equal Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        bool series indicate `left != right`
+    """
+
+    def __init__(self, feature_left, feature_right):
+        super(Ne, self).__init__(feature_left, feature_right, "not_equal")
+
+
+class And(NpPairOperator):
+    """And Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        two features' row by row & output
+    """
+
+    def __init__(self, feature_left, feature_right):
+        super(And, self).__init__(feature_left, feature_right, "bitwise_and")
+
+
+class Or(NpPairOperator):
+    """Or Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+
+    Returns
+    ----------
+    Feature:
+        two features' row by row | outputs
+    """
+
+    def __init__(self, feature_left, feature_right):
+        super(Or, self).__init__(feature_left, feature_right, "bitwise_or")
+
+
+#################### Triple-wise Operator ####################
+class If(ExpressionOps):
+    """If Operator
+
+    Parameters
+    ----------
+    condition : Expression
+        feature instance with bool values as condition
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+    """
+
+    def __init__(self, condition, feature_left, feature_right):
+        self.condition = condition
+        self.feature_left = feature_left
+        self.feature_right = feature_right
+
+    def __str__(self):
+        return "If({},{},{})".format(self.condition, self.feature_left, self.feature_right)
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series_cond = self.condition.load(instrument, start_index, end_index, *args)
+        if isinstance(self.feature_left, (Expression,)):
+            series_left = self.feature_left.load(instrument, start_index, end_index, *args)
+        else:
+            series_left = self.feature_left
+        if isinstance(self.feature_right, (Expression,)):
+            series_right = self.feature_right.load(instrument, start_index, end_index, *args)
+        else:
+            series_right = self.feature_right
+        series = pd.Series(np.where(series_cond, series_left, series_right), index=series_cond.index)
+        return series
+
+    def get_longest_back_rolling(self):
+        if isinstance(self.feature_left, (Expression,)):
+            left_br = self.feature_left.get_longest_back_rolling()
+        else:
+            left_br = 0
+
+        if isinstance(self.feature_right, (Expression,)):
+            right_br = self.feature_right.get_longest_back_rolling()
+        else:
+            right_br = 0
+
+        if isinstance(self.condition, (Expression,)):
+            c_br = self.condition.get_longest_back_rolling()
+        else:
+            c_br = 0
+        return max(left_br, right_br, c_br)
+
+    def get_extended_window_size(self):
+        if isinstance(self.feature_left, (Expression,)):
+            ll, lr = self.feature_left.get_extended_window_size()
+        else:
+            ll, lr = 0, 0
+
+        if isinstance(self.feature_right, (Expression,)):
+            rl, rr = self.feature_right.get_extended_window_size()
+        else:
+            rl, rr = 0, 0
+
+        if isinstance(self.condition, (Expression,)):
+            cl, cr = self.condition.get_extended_window_size()
+        else:
+            cl, cr = 0, 0
+        return max(ll, rl, cl), max(lr, rr, cr)
+
+
+#################### Rolling ####################
+# NOTE: methods like `rolling.mean` are optimized with cython,
+# and are super faster than `rolling.apply(np.mean)`
+
+
+class Rolling(ExpressionOps):
+    """Rolling Operator
+    The meaning of rolling and expanding is the same in pandas.
+    When the window is set to 0, the behaviour of the operator should follow `expanding`
+    Otherwise, it follows `rolling`
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+    func : str
+        rolling method
+
+    Returns
+    ----------
+    Expression
+        rolling outputs
+    """
+
+    def __init__(self, feature, N, func):
+        self.feature = feature
+        self.N = N
+        self.func = func
+
+    def __str__(self):
+        return "{}({},{})".format(type(self).__name__, self.feature, self.N)
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        # NOTE: remove all null check,
+        # now it's user's responsibility to decide whether use features in null days
+        # isnull = series.isnull() # NOTE: isnull = NaN, inf is not null
+        if isinstance(self.N, int) and self.N == 0:
+            series = getattr(series.expanding(min_periods=1), self.func)()
+        elif isinstance(self.N, float) and 0 < self.N < 1:
+            series = series.ewm(alpha=self.N, min_periods=1).mean()
+        else:
+            series = getattr(series.rolling(self.N, min_periods=1), self.func)()
+            # series.iloc[:self.N-1] = np.nan
+        # series[isnull] = np.nan
+        return series
+
+    def get_longest_back_rolling(self):
+        if self.N == 0:
+            return np.inf
+        if 0 < self.N < 1:
+            return int(np.log(1e-6) / np.log(1 - self.N))  # (1 - N)**window == 1e-6
+        return self.feature.get_longest_back_rolling() + self.N - 1
+
+    def get_extended_window_size(self):
+        if self.N == 0:
+            # FIXME: How to make this accurate and efficiently? Or  should we
+            # remove such support for N == 0?
+            get_module_logger(self.__class__.__name__).warning("The Rolling(ATTR, 0) will not be accurately calculated")
+            return self.feature.get_extended_window_size()
+        elif 0 < self.N < 1:
+            lft_etd, rght_etd = self.feature.get_extended_window_size()
+            size = int(np.log(1e-6) / np.log(1 - self.N))
+            lft_etd = max(lft_etd + size - 1, lft_etd)
+            return lft_etd, rght_etd
+        else:
+            lft_etd, rght_etd = self.feature.get_extended_window_size()
+            lft_etd = max(lft_etd + self.N - 1, lft_etd)
+            return lft_etd, rght_etd
+
+
+class Ref(Rolling):
+    """Feature Reference
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        N = 0, retrieve the first data; N > 0, retrieve data of N periods ago; N < 0, future data
+
+    Returns
+    ----------
+    Expression
+        a feature instance with target reference
+    """
+
+    def __init__(self, feature, N):
+        super(Ref, self).__init__(feature, N, "ref")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        # N = 0, return first day
+        if series.empty:
+            return series  # Pandas bug, see: https://github.com/pandas-dev/pandas/issues/21049
+        elif self.N == 0:
+            series = pd.Series(series.iloc[0], index=series.index)
+        else:
+            series = series.shift(self.N)  # copy
+        return series
+
+    def get_longest_back_rolling(self):
+        if self.N == 0:
+            return np.inf
+        return self.feature.get_longest_back_rolling() + self.N
+
+    def get_extended_window_size(self):
+        if self.N == 0:
+            get_module_logger(self.__class__.__name__).warning("The Ref(ATTR, 0) will not be accurately calculated")
+            return self.feature.get_extended_window_size()
+        else:
+            lft_etd, rght_etd = self.feature.get_extended_window_size()
+            lft_etd = max(lft_etd + self.N, lft_etd)
+            rght_etd = max(rght_etd - self.N, rght_etd)
+            return lft_etd, rght_etd
+
+
+class Mean(Rolling):
+    """Rolling Mean (MA)
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling average
+    """
+
+    def __init__(self, feature, N):
+        super(Mean, self).__init__(feature, N, "mean")
+
+
+class Sum(Rolling):
+    """Rolling Sum
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling sum
+    """
+
+    def __init__(self, feature, N):
+        super(Sum, self).__init__(feature, N, "sum")
+
+
+class Std(Rolling):
+    """Rolling Std
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling std
+    """
+
+    def __init__(self, feature, N):
+        super(Std, self).__init__(feature, N, "std")
+
+
+class Var(Rolling):
+    """Rolling Variance
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling variance
+    """
+
+    def __init__(self, feature, N):
+        super(Var, self).__init__(feature, N, "var")
+
+
+class Skew(Rolling):
+    """Rolling Skewness
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling skewness
+    """
+
+    def __init__(self, feature, N):
+        if N != 0 and N < 3:
+            raise ValueError("The rolling window size of Skewness operation should >= 3")
+        super(Skew, self).__init__(feature, N, "skew")
+
+
+class Kurt(Rolling):
+    """Rolling Kurtosis
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling kurtosis
+    """
+
+    def __init__(self, feature, N):
+        if N != 0 and N < 4:
+            raise ValueError("The rolling window size of Kurtosis operation should >= 5")
+        super(Kurt, self).__init__(feature, N, "kurt")
+
+
+class Max(Rolling):
+    """Rolling Max
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling max
+    """
+
+    def __init__(self, feature, N):
+        super(Max, self).__init__(feature, N, "max")
+
+
+class IdxMax(Rolling):
+    """Rolling Max Index
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling max index
+    """
+
+    def __init__(self, feature, N):
+        super(IdxMax, self).__init__(feature, N, "idxmax")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        if self.N == 0:
+            series = series.expanding(min_periods=1).apply(lambda x: x.argmax() + 1, raw=True)
+        else:
+            series = series.rolling(self.N, min_periods=1).apply(lambda x: x.argmax() + 1, raw=True)
+        return series
+
+
+class Min(Rolling):
+    """Rolling Min
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling min
+    """
+
+    def __init__(self, feature, N):
+        super(Min, self).__init__(feature, N, "min")
+
+
+class IdxMin(Rolling):
+    """Rolling Min Index
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling min index
+    """
+
+    def __init__(self, feature, N):
+        super(IdxMin, self).__init__(feature, N, "idxmin")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        if self.N == 0:
+            series = series.expanding(min_periods=1).apply(lambda x: x.argmin() + 1, raw=True)
+        else:
+            series = series.rolling(self.N, min_periods=1).apply(lambda x: x.argmin() + 1, raw=True)
+        return series
+
+
+class Quantile(Rolling):
+    """Rolling Quantile
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling quantile
+    """
+
+    def __init__(self, feature, N, qscore):
+        super(Quantile, self).__init__(feature, N, "quantile")
+        self.qscore = qscore
+
+    def __str__(self):
+        return "{}({},{},{})".format(type(self).__name__, self.feature, self.N, self.qscore)
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        if self.N == 0:
+            series = series.expanding(min_periods=1).quantile(self.qscore)
+        else:
+            series = series.rolling(self.N, min_periods=1).quantile(self.qscore)
+        return series
+
+
+class Med(Rolling):
+    """Rolling Median
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling median
+    """
+
+    def __init__(self, feature, N):
+        super(Med, self).__init__(feature, N, "median")
+
+
+class Mad(Rolling):
+    """Rolling Mean Absolute Deviation
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling mean absolute deviation
+    """
+
+    def __init__(self, feature, N):
+        super(Mad, self).__init__(feature, N, "mad")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        # TODO: implement in Cython
+
+        def mad(x):
+            x1 = x[~np.isnan(x)]
+            return np.mean(np.abs(x1 - x1.mean()))
+
+        if self.N == 0:
+            series = series.expanding(min_periods=1).apply(mad, raw=True)
+        else:
+            series = series.rolling(self.N, min_periods=1).apply(mad, raw=True)
+        return series
+
+
+class Rank(Rolling):
+    """Rolling Rank (Percentile)
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling rank
+    """
+
+    def __init__(self, feature, N):
+        super(Rank, self).__init__(feature, N, "rank")
+
+    # for compatiblity of python 3.7, which doesn't support pandas 1.4.0+ which implements Rolling.rank
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+
+        rolling_or_expending = series.expanding(min_periods=1) if self.N == 0 else series.rolling(self.N, min_periods=1)
+        if hasattr(rolling_or_expending, "rank"):
+            return rolling_or_expending.rank(pct=True)
+
+        def rank(x):
+            if np.isnan(x[-1]):
+                return np.nan
+            x1 = x[~np.isnan(x)]
+            if x1.shape[0] == 0:
+                return np.nan
+            return percentileofscore(x1, x1[-1]) / 100
+
+        return rolling_or_expending.apply(rank, raw=True)
+
+
+class Count(Rolling):
+    """Rolling Count
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling count of number of non-NaN elements
+    """
+
+    def __init__(self, feature, N):
+        super(Count, self).__init__(feature, N, "count")
+
+
+class Delta(Rolling):
+    """Rolling Delta
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with end minus start in rolling window
+    """
+
+    def __init__(self, feature, N):
+        super(Delta, self).__init__(feature, N, "delta")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        if self.N == 0:
+            series = series - series.iloc[0]
+        else:
+            series = series - series.shift(self.N)
+        return series
+
+
+# TODO:
+# support pair-wise rolling like `Slope(A, B, N)`
+class Slope(Rolling):
+    """Rolling Slope
+    This operator calculate the slope between `idx` and `feature`.
+    (e.g. [<feature_t1>, <feature_t2>, <feature_t3>] and [1, 2, 3])
+
+    Usage Example:
+    - "Slope($close, %d)/$close"
+
+    # TODO:
+    # Some users may want pair-wise rolling like `Slope(A, B, N)`
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with linear regression slope of given window
+    """
+
+    def __init__(self, feature, N):
+        super(Slope, self).__init__(feature, N, "slope")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        if self.N == 0:
+            series = pd.Series(expanding_slope(series.values), index=series.index)
+        else:
+            series = pd.Series(rolling_slope(series.values, self.N), index=series.index)
+        return series
+
+
+class Rsquare(Rolling):
+    """Rolling R-value Square
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with linear regression r-value square of given window
+    """
+
+    def __init__(self, feature, N):
+        super(Rsquare, self).__init__(feature, N, "rsquare")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        _series = self.feature.load(instrument, start_index, end_index, *args)
+        if self.N == 0:
+            series = pd.Series(expanding_rsquare(_series.values), index=_series.index)
+        else:
+            series = pd.Series(rolling_rsquare(_series.values, self.N), index=_series.index)
+            series.loc[np.isclose(_series.rolling(self.N, min_periods=1).std(), 0, atol=2e-05)] = np.nan
+        return series
+
+
+class Resi(Rolling):
+    """Rolling Regression Residuals
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with regression residuals of given window
+    """
+
+    def __init__(self, feature, N):
+        super(Resi, self).__init__(feature, N, "resi")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        if self.N == 0:
+            series = pd.Series(expanding_resi(series.values), index=series.index)
+        else:
+            series = pd.Series(rolling_resi(series.values, self.N), index=series.index)
+        return series
+
+
+class WMA(Rolling):
+    """Rolling WMA
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with weighted moving average output
+    """
+
+    def __init__(self, feature, N):
+        super(WMA, self).__init__(feature, N, "wma")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+        # TODO: implement in Cython
+
+        def weighted_mean(x):
+            w = np.arange(len(x)) + 1
+            w = w / w.sum()
+            return np.nanmean(w * x)
+
+        if self.N == 0:
+            series = series.expanding(min_periods=1).apply(weighted_mean, raw=True)
+        else:
+            series = series.rolling(self.N, min_periods=1).apply(weighted_mean, raw=True)
+        return series
+
+
+class EMA(Rolling):
+    """Rolling Exponential Mean (EMA)
+
+    Parameters
+    ----------
+    feature : Expression
+        feature instance
+    N : int, float
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with regression r-value square of given window
+    """
+
+    def __init__(self, feature, N):
+        super(EMA, self).__init__(feature, N, "ema")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+
+        def exp_weighted_mean(x):
+            a = 1 - 2 / (1 + len(x))
+            w = a ** np.arange(len(x))[::-1]
+            w /= w.sum()
+            return np.nansum(w * x)
+
+        if self.N == 0:
+            series = series.expanding(min_periods=1).apply(exp_weighted_mean, raw=True)
+        elif 0 < self.N < 1:
+            series = series.ewm(alpha=self.N, min_periods=1).mean()
+        else:
+            series = series.ewm(span=self.N, min_periods=1).mean()
+        return series
+
+
+#################### Pair-Wise Rolling ####################
+class PairRolling(ExpressionOps):
+    """Pair Rolling Operator
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling output of two input features
+    """
+
+    def __init__(self, feature_left, feature_right, N, func):
+        # TODO: in what case will a const be passed into `__init__` as `feature_left` or `feature_right`
+        self.feature_left = feature_left
+        self.feature_right = feature_right
+        self.N = N
+        self.func = func
+
+    def __str__(self):
+        return "{}({},{},{})".format(type(self).__name__, self.feature_left, self.feature_right, self.N)
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        assert any(
+            [isinstance(self.feature_left, Expression), self.feature_right, Expression]
+        ), "at least one of two inputs is Expression instance"
+
+        if isinstance(self.feature_left, Expression):
+            series_left = self.feature_left.load(instrument, start_index, end_index, *args)
+        else:
+            series_left = self.feature_left  # numeric value
+        if isinstance(self.feature_right, Expression):
+            series_right = self.feature_right.load(instrument, start_index, end_index, *args)
+        else:
+            series_right = self.feature_right
+
+        if self.N == 0:
+            series = getattr(series_left.expanding(min_periods=1), self.func)(series_right)
+        else:
+            series = getattr(series_left.rolling(self.N, min_periods=1), self.func)(series_right)
+        return series
+
+    def get_longest_back_rolling(self):
+        if self.N == 0:
+            return np.inf
+        if isinstance(self.feature_left, Expression):
+            left_br = self.feature_left.get_longest_back_rolling()
+        else:
+            left_br = 0
+
+        if isinstance(self.feature_right, Expression):
+            right_br = self.feature_right.get_longest_back_rolling()
+        else:
+            right_br = 0
+        return max(left_br, right_br)
+
+    def get_extended_window_size(self):
+        if isinstance(self.feature_left, Expression):
+            ll, lr = self.feature_left.get_extended_window_size()
+        else:
+            ll, lr = 0, 0
+        if isinstance(self.feature_right, Expression):
+            rl, rr = self.feature_right.get_extended_window_size()
+        else:
+            rl, rr = 0, 0
+        if self.N == 0:
+            get_module_logger(self.__class__.__name__).warning(
+                "The PairRolling(ATTR, 0) will not be accurately calculated"
+            )
+            return -np.inf, max(lr, rr)
+        else:
+            return max(ll, rl) + self.N - 1, max(lr, rr)
+
+
+class Corr(PairRolling):
+    """Rolling Correlation
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling correlation of two input features
+    """
+
+    def __init__(self, feature_left, feature_right, N):
+        super(Corr, self).__init__(feature_left, feature_right, N, "corr")
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        res: pd.Series = super(Corr, self)._load_internal(instrument, start_index, end_index, *args)
+
+        # NOTE: Load uses MemCache, so calling load again will not cause performance degradation
+        series_left = self.feature_left.load(instrument, start_index, end_index, *args)
+        series_right = self.feature_right.load(instrument, start_index, end_index, *args)
+        res.loc[
+            np.isclose(series_left.rolling(self.N, min_periods=1).std(), 0, atol=2e-05)
+            | np.isclose(series_right.rolling(self.N, min_periods=1).std(), 0, atol=2e-05)
+        ] = np.nan
+        return res
+
+
+class Cov(PairRolling):
+    """Rolling Covariance
+
+    Parameters
+    ----------
+    feature_left : Expression
+        feature instance
+    feature_right : Expression
+        feature instance
+    N : int
+        rolling window size
+
+    Returns
+    ----------
+    Expression
+        a feature instance with rolling max of two input features
+    """
+
+    def __init__(self, feature_left, feature_right, N):
+        super(Cov, self).__init__(feature_left, feature_right, N, "cov")
+
+
+#################### Operator which only support data with time index ####################
+# Convention
+# - The name of the operators in this section will start with "T"
+
+
+class TResample(ElemOperator):
+    def __init__(self, feature, freq, func):
+        """
+        Resampling the data to target frequency.
+        The resample function of pandas is used.
+
+        - the timestamp will be at the start of the time span after resample.
+
+        Parameters
+        ----------
+        feature : Expression
+            An expression for calculating the feature
+        freq : str
+            It will be passed into the resample method for resampling basedn on given frequency
+        func : method
+            The method to get the resampled values
+            Some expression are high frequently used
+        """
+        self.feature = feature
+        self.freq = freq
+        self.func = func
+
+    def __str__(self):
+        return "{}({},{})".format(type(self).__name__, self.feature, self.freq)
+
+    def _load_internal(self, instrument, start_index, end_index, *args):
+        series = self.feature.load(instrument, start_index, end_index, *args)
+
+        if series.empty:
+            return series
+        else:
+            if self.func == "sum":
+                return getattr(series.resample(self.freq), self.func)(min_count=1)
             else:
-                st.markdown(f"--- \n**[실패] 반복 #{log['iteration']}**")
-                st.error(f"오류: {log['error']}")
+                return getattr(series.resample(self.freq), self.func)()
+
+
+TOpsList = [TResample]
+OpsList = [
+    ChangeInstrument,
+    Rolling,
+    Ref,
+    Max,
+    Min,
+    Sum,
+    Mean,
+    Std,
+    Var,
+    Skew,
+    Kurt,
+    Med,
+    Mad,
+    Slope,
+    Rsquare,
+    Resi,
+    Rank,
+    Quantile,
+    Count,
+    EMA,
+    WMA,
+    Corr,
+    Cov,
+    Delta,
+    Abs,
+    Sign,
+    Log,
+    Power,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Greater,
+    Less,
+    And,
+    Or,
+    Not,
+    Gt,
+    Ge,
+    Lt,
+    Le,
+    Eq,
+    Ne,
+    Mask,
+    IdxMax,
+    IdxMin,
+    If,
+    Feature,
+    PFeature,
+] + [TResample]
+
+
+class OpsWrapper:
+    """Ops Wrapper"""
+
+    def __init__(self):
+        self._ops = {}
+
+    def reset(self):
+        self._ops = {}
+
+    def register(self, ops_list: List[Union[Type[ExpressionOps], dict]]):
+        """register operator
+
+        Parameters
+        ----------
+        ops_list : List[Union[Type[ExpressionOps], dict]]
+            - if type(ops_list) is List[Type[ExpressionOps]], each element of ops_list represents the operator class, which should be the subclass of `ExpressionOps`.
+            - if type(ops_list) is List[dict], each element of ops_list represents the config of operator, which has the following format:
+
+                .. code-block:: text
+
+                    {
+                        "class": class_name,
+                        "module_path": path,
+                    }
+
+                Note: `class` should be the class name of operator, `module_path` should be a python module or path of file.
+        """
+        for _operator in ops_list:
+            if isinstance(_operator, dict):
+                _ops_class, _ = get_callable_kwargs(_operator)
+            else:
+                _ops_class = _operator
+
+            if not issubclass(_ops_class, (Expression,)):
+                raise TypeError("operator must be subclass of ExpressionOps, not {}".format(_ops_class))
+
+            if _ops_class.__name__ in self._ops:
+                get_module_logger(self.__class__.__name__).warning(
+                    "The custom operator [{}] will override the qlib default definition".format(_ops_class.__name__)
+                )
+            self._ops[_ops_class.__name__] = _ops_class
+
+    def __getattr__(self, key):
+        if key not in self._ops:
+            raise AttributeError("The operator [{0}] is not registered".format(key))
+        return self._ops[key]
+
+
+Operators = OpsWrapper()
+
+
+def register_all_ops(C):
+    """register all operator"""
+    logger = get_module_logger("ops")
+
+    from qlib.data.pit import P, PRef  # pylint: disable=C0415
+
+    Operators.reset()
+    Operators.register(OpsList + [P, PRef])
+
+    if getattr(C, "custom_ops", None) is not None:
+        Operators.register(C.custom_ops)
+        logger.debug("register custom operator {}".format(C.custom_ops))
