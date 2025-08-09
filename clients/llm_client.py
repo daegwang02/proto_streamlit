@@ -23,6 +23,17 @@ class LLMClient:
 
     
     def _send_request(self, prompt: str, retries=5, delay=10) -> str:
+        """
+        주어진 프롬프트를 API에 전송하고, 재시도 로직을 포함하여 응답을 받습니다.
+
+        Args:
+            prompt (str): LLM에 전달할 전체 프롬프트 문자열입니다.
+            retries (int): API 호출 실패 시 재시도 횟수입니다.
+            delay (int): 재시도 간 대기 시간 (초) 입니다.
+
+        Returns:
+            str: LLM의 응답 텍스트.
+        """
         for i in range(retries):
             try:
                 response = self.client.chat.completions.create(
@@ -54,7 +65,7 @@ class LLMClient:
     def generate_hypothesis(self, external_knowledge: str, existing_hypotheses: List[str], feedback_summary: str) -> Dict[str, Any]:
         """
         시장 가설을 생성합니다. (IdeaAgent가 사용)
-        [수정] feedback_summary 파라미터 추가 및 프롬프트 수정
+        
         """
         prompt = f"""
         당신은 월스트리트의 저명한 퀀트 분석가입니다. 당신의 임무는 새로운 알파 팩터를 발굴하기 위한 창의적이고 논리적인 시장 가설을 수립하는 것입니다.
@@ -152,7 +163,6 @@ class LLMClient:
         ```
         """
         response_text = self._send_request(prompt)
-        # ⚠️ 이 부분의 오타를 수정했습니다.
         return self._parse_json_from_response(response_text)
 
     def score_description_alignment(self, factor_description: str, factor_formula: str) -> Dict[str, Any]:
@@ -204,6 +214,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
