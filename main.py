@@ -258,7 +258,7 @@ st.markdown("""
     .streamlit-expander { border-left: 5px solid #FFC107; border-radius: 8px; }
     </style>
     <div class="main-header">
-        <h1>🤖 Vibe Quant: KB 금융 AI 투자 전략 탐색기</h1>
+        <h1>🤖 Vibe Quant</h1>
     </div>
     <br>
     """, unsafe_allow_html=True)
@@ -312,7 +312,11 @@ if start_button:
     try:
         # 모든 키와 URL을 st.secrets에서 불러옵니다.
         llm_client = LLMClient(api_key=st.secrets.OPENAI_API_KEY)
-        db_client = DatabaseClient()
+        db_client = DatabaseClient(
+            data_url=st.secrets.KOR_STOCK_DATA_URL,
+            transaction_fee_buy=st.secrets.TRANSACTION_FEE_BUY,
+            transaction_fee_sell=st.secrets.TRANSACTION_FEE_SELL
+        )
         backtester_client = BacktesterClient(
             data_url=st.secrets.KOR_STOCK_DATA_URL,
             transaction_fee_buy=st.secrets.TRANSACTION_FEE_BUY,
@@ -393,6 +397,7 @@ if start_button:
             else:
                 st.error("분석을 통해 유의미한 팩터를 찾지 못했습니다.")
                 status.update(label="분석 실패.", state="error")
+
 
 
 
