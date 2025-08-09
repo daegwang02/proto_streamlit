@@ -161,13 +161,18 @@ class ComplexityAnalyzer:
 class OriginalityAnalyzer:
     """
     AST 비교를 통해 팩터의 독창성을 평가합니다.
+    Alpha Zoo에 있는 기존 팩터들과의 유사도를 측정합니다.
     """
     def __init__(self, parser: FactorParser, complexity_analyzer: ComplexityAnalyzer):
+        """
+        초기화 시 Alpha Zoo의 모든 팩터를 파싱하여 AST 형태로 저장해 둡니다.
+        """
         self.parser = parser
         self.complexity_analyzer = complexity_analyzer
         self.alpha_zoo_asts = self._load_alpha_zoo_asts()
 
     def _load_alpha_zoo_asts(self) -> List[ASTNode]:
+        """Alpha Zoo의 팩터 공식들을 AST로 변환하여 리스트로 반환합니다."""
         formulas = get_alpha_zoo()
         asts = []
         for formula in formulas:
@@ -178,6 +183,7 @@ class OriginalityAnalyzer:
         return asts
 
     def _are_isomorphic(self, node1: ASTNode, node2: ASTNode) -> bool:
+        """두 AST (또는 서브트리)가 구조적으로 동일한지 재귀적으로 확인합니다."""
         if type(node1) is not type(node2): return False
         if isinstance(node1, OperatorNode):
             return (node1.op == node2.op and
@@ -190,12 +196,23 @@ class OriginalityAnalyzer:
         return False
 
     def _get_all_subtrees(self, node: ASTNode) -> Set[ASTNode]:
+        """주어진 AST에서 모든 가능한 서브트리들을 set 형태로 반환합니다."""
         subtrees = {node}
         if isinstance(node, OperatorNode):
             for child in node.children: subtrees.update(self._get_all_subtrees(child))
         return subtrees
 
     def calculate_similarity_score(self, new_factor_ast: ASTNode) -> float:
+        """
+        새로운 팩터가 Alpha Zoo의 팩터들과 얼마나 유사한지 계산합니다.
+        가장 높은 유사도 점수를 반환합니다. (0: 완전 다름, 1: 완전 동일)
+
+        Args:
+            new_factor_ast (ASTNode): 독창성을 평가할 새로운 팩터의 AST입니다.
+
+        Returns:
+            float: Alpha Zoo 내 팩터들과의 최대 유사도 점수 (S(f)).
+        """
         max_similarity = 0.0
         new_factor_subtrees = self._get_all_subtrees(new_factor_ast)
         size_new = self.complexity_analyzer.calculate_symbolic_length(new_factor_ast)
@@ -255,6 +272,7 @@ class OriginalityAnalyzer:
 #     similarity3 = originality_analyzer.calculate_similarity_score(new_ast)
 #     print(f"\n테스트 공식 4 (유사도 낮음 예상): {new_formula_for_test}")
 #     print(f"-> Alpha Zoo와의 유사도 점수: {similarity3:.4f} (0에 가까울수록 독창적)")
+
 
 
 
