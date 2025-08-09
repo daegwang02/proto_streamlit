@@ -14,8 +14,14 @@ class LLMClient:
             raise ValueError("OpenAI API 키가 잘못되었거나 설정되지 않았습니다.")
             
         self.client = openai.OpenAI(api_key=api_key)
-        self.model = "gpt-4o-mini" # 모델명을 원하는 대로 설정할 수 있습니다.
+        self.model = "gpt-4o-mini" # 모델명을 원하는 대로 설정할 수 있습니다
+        # GPT에서 지원하는 파라미터
+        self.temperature = 0.2
+        self.top_p = 1.0
+        self.max_tokens = 4096
+    
 
+    
     def _send_request(self, prompt: str, retries=5, delay=10) -> str:
         for i in range(retries):
             try:
@@ -196,6 +202,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
