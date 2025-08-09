@@ -101,7 +101,7 @@ if start_button:
 
     try:
         # 모든 키와 URL을 st.secrets에서 불러옵니다.
-        llm_client = LLMClient(api_key=st.secrets.GOOGLE_API_KEY)
+        llm_client = LLMClient(api_key=st.secrets.OPENAI_API_KEY)
         db_client = DatabaseClient()
         backtester_client = BacktesterClient(
             data_url=st.secrets.KOR_STOCK_DATA_URL,
@@ -215,5 +215,6 @@ with st.expander("🔍 전체 분석 과정 로그 보기"):
     st.dataframe(st.session_state.db.hypotheses if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.factors if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.evaluations if st.session_state.db else pd.DataFrame(), use_container_width=True)
+
 
 
