@@ -314,14 +314,14 @@ if start_button:
     try:
         # 모든 키와 URL을 st.secrets에서 불러옵니다.
         llm_client = LLMClient(api_key=st.secrets.OPENAI_API_KEY)
-        db_client = DatabaseClient(
+        # ⚠️ DatabaseClient는 인자 없이 초기화합니다.
+        db_client = DatabaseClient()
+        
+        # ⚠️ BacktesterClient는 올바른 인자로 초기화합니다.
+        backtester_client = BacktesterClient(
             data_url=st.secrets.KOR_STOCK_DATA_URL,
             transaction_fee_buy=st.secrets.TRANSACTION_FEE_BUY,
             transaction_fee_sell=st.secrets.TRANSACTION_FEE_SELL
-        )
-        backtester_client = BacktesterClient(
-            data_url=st.secrets.KOR_STOCK_DATA_URL,
-            transaction_fee=(st.secrets.TRANSACTION_FEE_BUY + st.secrets.TRANSACTION_FEE_SELL)
         )
         
         st.session_state.agents = {
@@ -398,6 +398,7 @@ if start_button:
             else:
                 st.error("분석을 통해 유의미한 팩터를 찾지 못했습니다.")
                 status.update(label="분석 실패.", state="error")
+
 
 
 
