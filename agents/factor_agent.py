@@ -57,6 +57,10 @@ class FactorAgent(BaseAgent):
             print("--- FactorAgent 실행 종료 ---\n")
             return
 
+        # agents/factor_agent.py
+
+# ... (inside FactorAgent.run() method)
+        
         for hypothesis_record in new_hypotheses:
             hyp_id = hypothesis_record['id']
             hyp_data = hypothesis_record['data']
@@ -84,14 +88,14 @@ class FactorAgent(BaseAgent):
 
                 # 4. 팩터 유효성 검증
                 if sl > self.max_complexity_sl or pc > self.max_complexity_pc or originality > self.max_similarity or alignment_score < self.min_alignment:
-                # ...
+                    print(f"  - ❌ 검증 실패: 유효성 기준 미달. (SL:{sl}, PC:{pc}, Sim:{originality:.2f}, Align:{alignment_score:.2f})")
                     self.db_client.update_hypothesis_status(hyp_id, 'new')
                 else:
                     factor_data = {
                         'hypothesis_id': hyp_id,
                         'description': description,
                         'formula': formula,
-                        'ast': ast, # 💡 여기서는 아직 객체 상태로 저장합니다. DatabaseClient의 수정이 필요합니다.
+                        'ast': ast,
                         'complexity_sl': sl,
                         'complexity_pc': pc,
                         'originality_score': originality,
@@ -99,10 +103,6 @@ class FactorAgent(BaseAgent):
                     }
                     factor_id = self.db_client.save_factor(factor_data)
                     print(f"  - ✅ 검증 통과: 새로운 팩터 #{factor_id} 저장 완료.")
-
-            # 🚨 디버깅 코드 추가: 저장된 AST 내용 확인
-                    stored_factor = self.db_client.factors.loc[self.db_client.factors['id'] == factor_id].iloc[0]
-                    print(f"  - 저장된 AST 객체: {stored_factor['ast']}")
             
             except Exception as e:
                 # 오류 발생 시 가설 상태를 'failed'로 변경합니다.
@@ -113,6 +113,7 @@ class FactorAgent(BaseAgent):
                 self.db_client.update_hypothesis_status(hyp_id, 'done')
         
         print("\n--- FactorAgent 실행 종료 ---\n")
+
 
 
 
