@@ -3,6 +3,7 @@
 from .base_agent import BaseAgent
 from clients.database_client import DatabaseClient
 from clients.backtester_client import BacktesterClient
+from foundations.factor_structure import FactorParser
 
 class EvalAgent(BaseAgent):
     """
@@ -55,6 +56,7 @@ class EvalAgent(BaseAgent):
                 self.db_client.update_factor_status(factor_id, 'failed')
         
         print("\n--- EvalAgent 실행 종료 ---\n")
+
 
 
 
