@@ -30,28 +30,16 @@ class LLMClient:
             generation_config=self.generation_config
         )
     
-    def _send_request(self, prompt: str, retries=5, delay=10) -> str:
+    def _send_request(self, prompt: str, retries=3, delay=5) -> str:
         """
         주어진 프롬프트를 API에 전송하고, 재시도 로직을 포함하여 응답을 받습니다.
-
-        Args:
-            prompt (str): LLM에 전달할 전체 프롬프트 문자열입니다.
-            retries (int): API 호출 실패 시 재시도 횟수입니다.
-            delay (int): 재시도 간 대기 시간 (초) 입니다.
-
-        Returns:
-            str: LLM의 응답 텍스트.
         """
         for i in range(retries):
             try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=self.temperature,
-                    top_p=self.top_p,
-                    max_tokens=self.max_tokens
-                )
-                return response.choices[0].message.content
+                # 💡 self.client 대신 self.model을 사용하도록 수정합니다.
+                chat_session = self.model.start_chat()
+                response = chat_session.send_message(prompt)
+                return response.text
             except Exception as e:
                 print(f"LLM API 호출 중 오류 발생: {e}. {delay}초 후 재시도합니다... ({i+1}/{retries})")
                 time.sleep(delay)
@@ -240,6 +228,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
