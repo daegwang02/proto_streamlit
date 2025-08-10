@@ -24,24 +24,24 @@ class FactorAgent(BaseAgent):
         self.max_similarity = 0.9    # 최대 유사도 (이 값 이상이면 너무 유사하여 탈락)
         self.min_alignment = 0.6     # 최소 가설-설명-공식 일치도
 
-        # ✅ 새로운 프롬프트 보완 정보 추가
-        self.function_rules = """
-        다음 함수 목록을 사용하여 팩터 수식을 생성하세요.
-        시계열 함수: delay(series, d), delta(series, d), ts_mean(series, d), ts_stddev(series, d)
-        횡단면 함수: rank(series), scale(series)
-        기본 변수: open, high, low, close, volume, adv(d)
-        기타: if(condition, true_val, false_val), abs(series), log(series)
-        """
-        self.syntax_rules = """
-        규칙:
-        1. 모든 함수 호출은 함수명(인수) 형식으로 작성해야 합니다.
-        2. 모든 수식은 괄호로 감싸야 합니다.
-        3. if 함수의 인수는 if(조건, 참일때 값, 거짓일 때 값) 순서를 지켜야 합니다.
+        # # ✅ 새로운 프롬프트 보완 정보 추가
+        # self.function_rules = """
+        # 다음 함수 목록을 사용하여 팩터 수식을 생성하세요.
+        # 시계열 함수: delay(series, d), delta(series, d), ts_mean(series, d), ts_stddev(series, d)
+        # 횡단면 함수: rank(series), scale(series)
+        # 기본 변수: open, high, low, close, volume, adv(d)
+        # 기타: if(condition, true_val, false_val), abs(series), log(series)
+        # """
+        # self.syntax_rules = """
+        # 규칙:
+        # 1. 모든 함수 호출은 함수명(인수) 형식으로 작성해야 합니다.
+        # 2. 모든 수식은 괄호로 감싸야 합니다.
+        # 3. if 함수의 인수는 if(조건, 참일때 값, 거짓일 때 값) 순서를 지켜야 합니다.
         
-        예시:
-        (rank(open / close))
-        (rank((close - ts_mean(close, 10)) / ts_stddev(close, 10)))
-        """
+        # 예시:
+        # (rank(open / close))
+        # (rank((close - ts_mean(close, 10)) / ts_stddev(close, 10)))
+        # """
 
     
 
@@ -117,6 +117,7 @@ class FactorAgent(BaseAgent):
                 self.db_client.update_hypothesis_status(hyp_id, 'done')
         
         print("\n--- FactorAgent 실행 종료 ---\n")
+
 
 
 
