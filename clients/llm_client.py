@@ -110,7 +110,7 @@ class LLMClient:
         response_text = self._send_request(prompt)
         return self._parse_json_from_response(response_text)
 
-   def generate_factor_from_hypothesis(self, 
+    def generate_factor_from_hypothesis(self, 
                                     hypothesis: Dict[str, Any],
                                     function_rules: str,
                                     syntax_rules: str,
@@ -222,6 +222,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
