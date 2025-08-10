@@ -64,12 +64,9 @@ class FactorAgent(BaseAgent):
             self.db_client.update_hypothesis_status(hyp_id, 'processing')
             
             try:
-                # ⚠️ 'function_rules'와 'syntax_rules' 인자를 제거하고, hypothesis만 전달합니다.
                 factor_candidate = self.llm_client.generate_factor_from_hypothesis(hypothesis=hyp_data)
-
                 description = factor_candidate['description']
                 formula = factor_candidate['formula']
-                print(f"  - 생성된 공식: {formula}")
 
                 # 2. 팩터 파싱 및 분석
                 ast = self.parser.parse(formula)
@@ -87,21 +84,20 @@ class FactorAgent(BaseAgent):
 
                 # 4. 팩터 유효성 검증
                 if sl > self.max_complexity_sl or pc > self.max_complexity_pc or originality > self.max_similarity or alignment_score < self.min_alignment:
-                    print(f"  - ❌ 검증 실패: 유효성 기준 미달. (SL:{sl}, PC:{pc}, Sim:{originality:.2f}, Align:{alignment_score:.2f})")
-                    self.db_client.update_hypothesis_status(hyp_id, 'new')
-                else:
-                    # 5. 검증 통과 시 데이터베이스에 저장
-                    factor_data = {
-                        'hypothesis_id': hyp_id,
-                        'description': description,
-                        'formula': formula,
-                        'ast': str(ast),
-                        'complexity_sl': sl,
-                        'complexity_pc': pc,
-                        'originality_score': originality,
-                        'alignment_score': alignment_score,
-                    }
-                    factor_id = self.db_client.save_factor(factor_data)
+                # ...
+                self.db_client.update_hypothesis_status(hyp_id, 'new')
+            else:
+                factor_data = {
+                    'hypothesis_id': hyp_id,
+                    'description': description,
+                    'formula': formula,
+                    'ast': ast, # 💡 여기서는 아직 객체 상태로 저장합니다. DatabaseClient의 수정이 필요합니다.
+                    'complexity_sl': sl,
+                    'complexity_pc': pc,
+                    'originality_score': originality,
+                    'alignment_score': alignment_score,
+                }
+                factor_id = self.db_client.save_factor(factor_data)
                     print(f"  - ✅ 검증 통과: 새로운 팩터 #{factor_id} 저장 완료.")
 
             # 🚨 디버깅 코드 추가: 저장된 AST 내용 확인
@@ -117,6 +113,7 @@ class FactorAgent(BaseAgent):
                 self.db_client.update_hypothesis_status(hyp_id, 'done')
         
         print("\n--- FactorAgent 실행 종료 ---\n")
+
 
 
 
