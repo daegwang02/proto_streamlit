@@ -20,9 +20,9 @@ class FactorAgent(BaseAgent):
         
         # 팩터 검증을 위한 임계값 설정
         self.max_complexity_sl = 40  # 최대 상징적 길이
-        self.max_complexity_pc = 7   # 최대 파라미터 개수
+        self.max_complexity_pc = 78   # 최대 파라미터 개수
         self.max_similarity = 0.9    # 최대 유사도 (이 값 이상이면 너무 유사하여 탈락)
-        self.min_alignment = 0.6     # 최소 가설-설명-공식 일치도
+        self.min_alignment = 0.9     # 최소 가설-설명-공식 일치도
 
         # # ✅ 새로운 프롬프트 보완 정보 추가
         # self.function_rules = """
@@ -113,6 +113,7 @@ class FactorAgent(BaseAgent):
                 self.db_client.update_hypothesis_status(hyp_id, 'done')
         
         print("\n--- FactorAgent 실행 종료 ---\n")
+
 
 
 
