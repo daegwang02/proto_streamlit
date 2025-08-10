@@ -103,6 +103,10 @@ class FactorAgent(BaseAgent):
                     }
                     factor_id = self.db_client.save_factor(factor_data)
                     print(f"  - ✅ 검증 통과: 새로운 팩터 #{factor_id} 저장 완료.")
+
+            # 🚨 디버깅 코드 추가: 저장된 AST 내용 확인
+                    stored_factor = self.db_client.factors.loc[self.db_client.factors['id'] == factor_id].iloc[0]
+                    print(f"  - 저장된 AST 객체: {stored_factor['ast']}")
             
             except Exception as e:
                 # 오류 발생 시 가설 상태를 'failed'로 변경합니다.
@@ -113,6 +117,7 @@ class FactorAgent(BaseAgent):
                 self.db_client.update_hypothesis_status(hyp_id, 'done')
         
         print("\n--- FactorAgent 실행 종료 ---\n")
+
 
 
 
