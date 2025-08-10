@@ -20,10 +20,10 @@ class HyperparameterOptimizer:
 
         # 탐색할 하이퍼파라미터의 범위(pbounds) 정의
         self.pbounds = {
-            'max_complexity_sl': (15, 40),      # 상징적 길이 (int)
-            'max_complexity_pc': (3, 8),        # 파라미터 개수 (int)
+            'max_complexity_sl': (30, 80),      # 상징적 길이 (int)
+            'max_complexity_pc': (5, 20),        # 파라미터 개수 (int)
             'max_similarity': (0.7, 0.99),      # 최대 유사도
-            'min_alignment': (0.5, 0.95)        # 최소 일치도
+            'min_alignment': (0.6, 0.95)        # 최소 일치도
         }
 
     def _objective_function(self, max_complexity_sl, max_complexity_pc, max_similarity, min_alignment):
@@ -114,6 +114,7 @@ class HyperparameterOptimizer:
         best_params['max_complexity_pc'] = int(best_params['max_complexity_pc'])
 
         return best_params
+
 
 
 
