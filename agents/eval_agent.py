@@ -28,7 +28,7 @@ class EvalAgent(BaseAgent):
             factor_id = factor_record['id']
             formula = factor_record['formula']
             
-            # 💡 재파싱하여 ast 객체 다시 생성
+            # 💡 formula를 재파싱하여 ast 객체 다시 생성
             try:
                 parser = FactorParser()
                 ast = parser.parse(formula)
@@ -41,7 +41,7 @@ class EvalAgent(BaseAgent):
             self.db_client.update_factor_status(factor_id, 'evaluating')
 
             try:
-                # 백테스터를 실행하여 성과 지표를 얻음
+                # 백테스터에 유효한 `ast` 객체 전달
                 performance_metrics = self.backtester_client.run_full_backtest(formula, ast)
                 
                 # ✅ 평가 결과를 DB에 저장하는 핵심 로직
@@ -55,5 +55,6 @@ class EvalAgent(BaseAgent):
                 self.db_client.update_factor_status(factor_id, 'failed')
         
         print("\n--- EvalAgent 실행 종료 ---\n")
+
 
 
