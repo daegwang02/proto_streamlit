@@ -137,7 +137,7 @@ class LLMClient:
         {{
             "description": "이 팩터는 ...을 측정하여 ... 신호를 포착합니다.",
             "formula": "예: rank(correlation(high, volume, 10))"
-            }}
+        }}
 
         ```
         """..
@@ -217,6 +217,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
