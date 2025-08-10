@@ -1,5 +1,5 @@
 # clients/llm_client.py
-import openai
+import google.generativeai as genai
 import json
 import time
 import re
@@ -7,20 +7,28 @@ from typing import Dict, Any, List
 
 class LLMClient:
     """
-    OpenAI API와 상호작용하여 LLM의 기능을 활용하는 클라이언트입니다.
+    Google Gemini API와 상호작용하여 LLM의 기능을 활용하는 클라이언트입니다.
     """
     def __init__(self, api_key: str):
-        if not api_key or api_key.strip() == "" or not api_key.startswith("sk-"):
-            raise ValueError("OpenAI API 키가 잘못되었거나 설정되지 않았습니다.")
+       # API 키 유효성 검사 로직을 Gemini에 맞게 수정
+        if not api_key or api_key.strip() == "" or not api_key.startswith("AIza"):
+            raise ValueError("Google Gemini API 키가 잘못되었거나 설정되지 않았습니다.")
             
-        self.client = openai.OpenAI(api_key=api_key)
-        self.model = "gpt-4o-mini" # 모델명을 원하는 대로 설정할 수 있습니다
-        # GPT에서 지원하는 파라미터
-        self.temperature = 0.2
-        self.top_p = 1.0
-        self.max_tokens = 4096
-    
-
+        genai.configure(api_key=api_key)
+        
+        # 일관성 있는 출력을 위해 생성 설정을 지정합니다.
+        self.generation_config = {
+            "temperature": 0.2,
+            "top_p": 1.0,
+            "top_k": 32,
+            "max_output_tokens": 4096,
+        }
+        
+        # 사용할 모델을 지정합니다.
+        self.model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
+            generation_config=self.generation_config
+        )
     
     def _send_request(self, prompt: str, retries=5, delay=10) -> str:
         """
@@ -232,6 +240,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
