@@ -111,9 +111,9 @@ class LLMClient:
         return self._parse_json_from_response(response_text)
 
     def generate_factor_from_hypothesis(self, hypothesis: Dict[str, Any]) -> Dict[str, str]:
-        """
-        주어진 가설로부터 팩터 설명과 공식을 생성합니다. (FactorAgent가 사용)
-        """
+        """
+        주어진 가설로부터 팩터 설명과 공식을 생성합니다. (FactorAgent가 사용)
+        """
 
         prompt = f"""
         당신은 퀀트 개발자입니다. 주어진 시장 가설을 실행 가능한 알파 팩터로 변환하는 것이 당신의 역할입니다.
@@ -217,6 +217,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
