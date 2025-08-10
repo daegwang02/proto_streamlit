@@ -299,9 +299,13 @@ if start_button:
     st.session_state.final_report = None
     st.session_state.best_factor_info = None
 
+    st.write(f"Secrets에서 불러온 GEMINI_API_KEY: {st.secrets.get('GEMINI_API_KEY')}")
+
     try:
         # 💡 st.secrets에서 GEMINI_API_KEY를 불러와 LLMClient에 전달
         llm_client = LLMClient(api_key=st.secrets.GEMINI_API_KEY)
+
+   
         
         # DatabaseClient와 BacktesterClient는 Secrets의 다른 값들을 사용
         db_client = DatabaseClient(
@@ -390,6 +394,7 @@ if start_button:
             else:
                 st.error("분석을 통해 유의미한 팩터를 찾지 못했습니다.")
                 status.update(label="분석 실패.", state="error")
+
 
 
 
