@@ -565,6 +565,8 @@
 # clients/backtester_client.py (수정 완료)
 
 import pandas as pd
+import pyarrow.parquet as pq # 💡 pyarrow.parquet import 추가
+import requests
 import numpy as np
 import warnings
 import lightgbm as lgb
@@ -775,4 +777,5 @@ class BacktesterClient:
         
         print("백테스팅 완료.")
         return results
+
 
