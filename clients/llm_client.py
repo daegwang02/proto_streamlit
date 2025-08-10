@@ -110,42 +110,61 @@ class LLMClient:
         response_text = self._send_request(prompt)
         return self._parse_json_from_response(response_text)
 
-    def generate_factor_from_hypothesis(self, 
-                                    hypothesis: Dict[str, Any],
-                                    function_rules: str,
-                                    syntax_rules: str,
-                                    existing_factors: List[str] = []) -> Dict[str, str]:
-        """
-        주어진 가설로부터 팩터 설명과 공식을 생성합니다.
-        """
-    # 기존 프롬프트에 function_rules와 syntax_rules를 추가하여 프롬프트를 강화합니다.
-        prompt = f"""
-        당신은 퀀트 개발자입니다. 주어진 시장 가설을 실행 가능한 알파 팩터로 변환하는 것이 당신의 역할입니다.
-        --- [시장 가설] ---
-        - 지식: {hypothesis.get('knowledge')}
-        - 관찰: {hypothesis.get('market_observation')}
-        - 논리: {hypothesis.get('justification')}
-        - 가설: {hypothesis.get('hypothesis')}
-        - 조건: {hypothesis.get('specification')}
-        --- [시장 가설 끝] ---
-        --- [팩터 공식 규칙] ---
-        {function_rules}
-        {syntax_rules}
-        --- [팩터 공식 규칙 끝] ---
+    def generate_factor_from_hypothesis(self, hypothesis: Dict[str, Any]) -> Dict[str, str]:
 
-        이 가설을 구현하기 위한 팩터의 '설명(description)'과 '공식(formula)'을 생성해주십시오.
-        - '설명'은 이 팩터가 무엇을 측정하고 어떤 논리로 작동하는지 자연어로 명확하게 서술해야 합니다.
-        - '공식'은 '팩터 공식 규칙'에 따라 작성해야 합니다.
+        """
 
-        출력 형식은 반드시 다음 JSON 구조를 따라야 합니다:
-        ```json
-        {{
-          "description": "이 팩터는 ...을 측정하여 ... 신호를 포착합니다.",
-          "formula": "예: (rank(correlation(high, volume, 10)))"
-        }}
-        ```
-        """
-        # ... (나머지 LLM 호출 로직은 그대로 유지) ...
+        주어진 가설로부터 팩터 설명과 공식을 생성합니다. (FactorAgent가 사용)
+
+        """
+
+        prompt = f"""
+
+        당신은 퀀트 개발자입니다. 주어진 시장 가설을 실행 가능한 알파 팩터로 변환하는 것이 당신의 역할입니다.
+
+
+
+        --- [시장 가설] ---
+
+        - 지식: {hypothesis.get('knowledge')}
+
+        - 관찰: {hypothesis.get('market_observation')}
+
+        - 논리: {hypothesis.get('justification')}
+
+        - 가설: {hypothesis.get('hypothesis')}
+
+        - 조건: {hypothesis.get('specification')}
+
+        --- [시장 가설 끝] ---
+
+
+
+        이 가설을 구현하기 위한 팩터의 '설명(description)'과 '공식(formula)'을 생성해주십시오.
+
+        - '설명'은 이 팩터가 무엇을 측정하고 어떤 논리로 작동하는지 자연어로 명확하게 서술해야 합니다.
+
+        - '공식'은 Operator Library(e.g., rank, correlation, ts_min, high, low, close, volume)의 함수들을 사용하여 작성해야 합니다.
+
+
+
+        출력 형식은 반드시 다음 JSON 구조를 따라야 합니다:
+
+        ```json
+
+        {{
+
+          "description": "이 팩터는 ...을 측정하여 ... 신호를 포착합니다.",
+
+          "formula": "예: rank(correlation(high, volume, 10))"
+
+        }}
+
+        ```
+
+
+
+        """..
         response_text = self._send_request(prompt)
         return self._parse_json_from_response(response_text)
     
@@ -222,6 +241,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
