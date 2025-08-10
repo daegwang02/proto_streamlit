@@ -19,8 +19,8 @@ class FactorAgent(BaseAgent):
         self.originality_analyzer = OriginalityAnalyzer(self.parser, self.complexity_analyzer)
         
         # 팩터 검증을 위한 임계값 설정
-        self.max_complexity_sl = 30  # 최대 상징적 길이
-        self.max_complexity_pc = 5   # 최대 파라미터 개수
+        self.max_complexity_sl = 40  # 최대 상징적 길이
+        self.max_complexity_pc = 7   # 최대 파라미터 개수
         self.max_similarity = 0.9    # 최대 유사도 (이 값 이상이면 너무 유사하여 탈락)
         self.min_alignment = 0.6     # 최소 가설-설명-공식 일치도
 
@@ -124,4 +124,5 @@ class FactorAgent(BaseAgent):
             self.db_client.update_hypothesis_status(hyp_id, 'done')
         
         print("\n--- FactorAgent 실행 종료 ---\n")
+
 
