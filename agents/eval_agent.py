@@ -30,6 +30,7 @@ class EvalAgent(BaseAgent):
             ast = factor_record['ast']
             
             print(f"\n[팩터 #{factor_id} 평가 중]: {formula}")
+            print(f"  - 백테스터에 전달할 AST: {ast}") # 🚨 디버깅 코드 추가
             self.db_client.update_factor_status(factor_id, 'evaluating')
 
             try:
@@ -48,4 +49,5 @@ class EvalAgent(BaseAgent):
                 self.db_client.update_factor_status(factor_id, 'failed')
         
         print("\n--- EvalAgent 실행 종료 ---\n")
+
 
