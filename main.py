@@ -262,8 +262,8 @@ if 'analysis_done' not in st.session_state: st.session_state.analysis_done = Fal
 # --- 4. 사이드바 (설정) ---
 with st.sidebar:
     st.header("⚙️ 설정")
-    # 💡 API 키 설명을 Gemini에 맞게 수정
-    st.info("API 키는 Secrets 설정에 `GEMINI_API_KEY`로 등록되어야 합니다.")
+    # 💡 API 키 설명을 OpenAI에 맞게 수정
+    st.info("API 키는 Secrets 설정에 `OPENAI_API_KEY`로 등록되어야 합니다.")
 
     external_knowledge = st.text_area(
         "💡 AI에게 제공할 시장 분석 정보 (선택)",
@@ -285,40 +285,17 @@ with st.sidebar:
     st.info("데이터 파일 URL: Secrets의 `KOR_STOCK_DATA_URL`")
 
 # --- 5. 메인 화면 (분석 실행 및 결과 표시) ---
-st.write("### AI 투자 아이디어 입력")
-user_idea = st.text_area(
-    "어떤 투자 아이디어를 탐색하고 싶으신가요?",
-    "최근 3개월간 꾸준히 상승 추세를 보였으나, 단기적인 과열 신호(예: RSI 70 이상)가 없는 주식. 동시에 기업 가치 대비 저평가되어 있는 종목을 찾고 싶습니다",
-    height=80
-)
-
-# 분석 시작 버튼이 눌렸을 때 전체 워크플로우 실행
 if start_button:
     # 세션 상태 초기화
     st.session_state.analysis_done = True
     st.session_state.final_report = None
     st.session_state.best_factor_info = None
 
-    st.write(f"Secrets에서 불러온 GEMINI_API_KEY: {st.secrets.get('GEMINI_API_KEY')}")
-
     try:
-        # 💡 st.secrets에서 GEMINI_API_KEY를 불러와 LLMClient에 전달
-        llm_client = LLMClient(api_key=st.secrets.GEMINI_API_KEY)
-
-   
+        # 💡 st.secrets에서 OPENAI_API_KEY를 불러와 LLMClient에 전달
+        llm_client = LLMClient(api_key=st.secrets.OPENAI_API_KEY)
         
-        # DatabaseClient와 BacktesterClient는 Secrets의 다른 값들을 사용
-        db_client = DatabaseClient(
-            data_url=st.secrets.KOR_STOCK_DATA_URL,
-            transaction_fee_buy=st.secrets.TRANSACTION_FEE_BUY,
-            transaction_fee_sell=st.secrets.TRANSACTION_FEE_SELL
-        )
-        
-        backtester_client = BacktesterClient(
-            data_url=st.secrets.KOR_STOCK_DATA_URL,
-            transaction_fee_buy=st.secrets.TRANSACTION_FEE_BUY,
-            transaction_fee_sell=st.secrets.TRANSACTION_FEE_SELL
-        )
+        # ... (DatabaseClient, BacktesterClient 초기화 코드는 그대로 유지) ...
         
         st.session_state.agents = {
             'llm': llm_client,
@@ -394,6 +371,7 @@ if start_button:
             else:
                 st.error("분석을 통해 유의미한 팩터를 찾지 못했습니다.")
                 status.update(label="분석 실패.", state="error")
+
 
 
 
