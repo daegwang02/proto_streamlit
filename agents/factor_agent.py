@@ -37,6 +37,8 @@ class FactorAgent(BaseAgent):
         1. 모든 함수 호출은 함수명(인수) 형식으로 작성해야 합니다.
         2. 모든 수식은 괄호로 감싸야 합니다.
         3. if 함수의 인수는 if(조건, 참일때 값, 거짓일 때 값) 순서를 지켜야 합니다.
+        4. 생성하는 팩터 수식은 가능한 한 간결하고 단순하게 구성해야 합니다.
+        5. 중첩되는 함수 호출은 2단계 이상을 넘지 않도록 노력하세요. (예: rank(ts_mean(close, 10))는 허용되지만, rank(ts_mean(ts_stddev(close, 5), 10))과 같은 복잡한 중첩은 피하세요.)
 
         예시:
         (rank(open / close))
@@ -124,5 +126,6 @@ class FactorAgent(BaseAgent):
             self.db_client.update_hypothesis_status(hyp_id, 'done')
         
         print("\n--- FactorAgent 실행 종료 ---\n")
+
 
 
