@@ -632,62 +632,45 @@ class BacktesterClient:
         return self.data_cache
 
     def _execute_ast(self, node: ASTNode, market_data: pd.DataFrame) -> Any:
-        if isinstance(node, LiteralNode): return node.value
+        """
+        AST를 재귀적으로 실행하여 팩터 값을 계산합니다.
+        """
+        # --- 베이스 케이스: 노드가 변수이거나 리터럴일 때 ---
+        if isinstance(node, LiteralNode):
+            return node.value
         if isinstance(node, VariableNode):
-            if node.name == 'returns': return market_data.groupby('ticker')['price'].pct_change()
-            if node.name in market_data.columns: return market_data[node.name]
+            # 'returns'와 같은 동적 변수 처리
+            if node.name == 'returns':
+                return market_data.groupby('ticker')['price'].pct_change()
+            if node.name in market_data.columns:
+                return market_data[node.name]
+            # 'adv' 시리즈 같은 파생변수 처리
             if node.name.startswith('adv'):
                 try:
                     days = int(node.name[3:])
                     turnover_col = market_data['price'] * market_data['volume']
-                    return turnover_col.groupby(level='ticker').rolling(window=days, min_periods=1).mean().reset_index(level=0, drop=True)
-                except: raise NameError(f"adv 파생 변수 파싱 오류: {node.name}")
+                    return turnover_col.groupby(level='ticker').rolling(window=days, min_periods=1).mean().reset_index(0, drop=True)
+                except:
+                    raise NameError(f"adv 파생 변수 파싱 오류: {node.name}")
             raise NameError(f"정의되지 않은 변수입니다: {node.name}")
+
+        # --- 재귀 케이스: 노드가 연산자일 때 ---
         if isinstance(node, OperatorNode):
-            children_values = [self._execute_ast(child, market_data) for child in node.children]
+            # 연산자 이름을 소문자로 통일하여 딕셔너리 키와 맞춥니다.
             op_name = node.op.lower()
-            
-            if op_name == 'rank': return children_values[0].groupby(level='date').rank(pct=True)
-            if op_name == 'scale': return children_values[0].groupby(level='date').transform(lambda x: x / x.abs().sum())
-            if op_name in ['delay', 'delta', 'sum', 'stddev', 'ts_min', 'ts_max', 'ts_rank']:
-                series = children_values[0]
-                d = int(children_values[1])
-                grouped_series = series.groupby(level='ticker')
-                if op_name == 'delay': return grouped_series.shift(d)
-                if op_name == 'delta': return series - grouped_series.shift(d)
-                if op_name == 'sum': return grouped_series.rolling(window=d).sum()
-                if op_name == 'stddev': return grouped_series.rolling(window=d).std()
-                if op_name == 'ts_min': return grouped_series.rolling(window=d).min()
-                if op_name == 'ts_max': return grouped_series.rolling(window=d).max()
-                if op_name == 'ts_rank': return grouped_series.rolling(window=d).rank(pct=True)
-            if op_name == 'correlation':
-                series1, series2, d = children_values[0], children_values[1], int(children_values[2])
-                return series1.groupby(level='ticker').rolling(window=d).corr(series2).unstack(level=1).iloc[:,0]
-            if op_name == 'covariance':
-                series1, series2, d = children_values[0], children_values[1], int(children_values[2])
-                return series1.groupby(level='ticker').rolling(window=d).cov(series2).unstack(level=1).iloc[:,0]
-            
-            if op_name == '+': return children_values[0] + children_values[1]
-            if op_name == '-': return children_values[0] - children_values[1]
-            if op_name == '*': return children_values[0] * children_values[1]
-            if op_name == '/': return children_values[0] / children_values[1].replace(0, 1e-6)
-            if op_name == '^': return np.power(children_values[0], children_values[1])
-            if op_name == 'neg': return -children_values[0]
-            if op_name == 'abs': return children_values[0].abs()
-            if op_name == 'sign': return np.sign(children_values[0])
-            if op_name == 'log': return np.log(children_values[0].replace(0, 1e-6).abs())
-            if op_name == 'if':
-                condition, true_val, false_val = children_values
-                return pd.Series(np.where(condition, true_val, false_val), index=condition.index)
-            if op_name == '>': return children_values[0] > children_values[1]
-            if op_name == '<': return children_values[0] < children_values[1]
-            if op_name == '>=': return children_values[0] >= children_values[1]
-            if op_name == '<=': return children_values[0] <= children_values[1]
-            if op_name == '==': return children_values[0] == children_values[1]
-            if op_name == '&&': return children_values[0] & children_values[1]
-            if op_name == '||': return children_values[0] | children_values[1]
+
+            if op_name in op_lib.OPERATORS:
+                # 자식 노드들의 값을 재귀적으로 먼저 계산
+                children_values = [self._execute_ast(child, market_data) for child in node.children]
+                
+                # OPERATORS 딕셔너리에서 해당 연산자 함수를 찾아 호출
+                op_function = op_lib.OPERATORS[op_name]
+                return op_function(*children_values) # `*`로 인자들을 언패킹하여 전달
+
             raise NameError(f"정의되지 않은 연산자입니다: {node.op}")
+        
         raise TypeError(f"처리할 수 없는 노드 타입입니다: {type(node)}")
+
 
     def calculate_factor_values(self, formula: str, ast: ASTNode) -> pd.Series:
         if formula in self.factor_cache: return self.factor_cache[formula]
@@ -792,3 +775,4 @@ class BacktesterClient:
         
         print("백테스팅 완료.")
         return results
+
