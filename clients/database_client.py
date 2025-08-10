@@ -37,12 +37,17 @@ class DatabaseClient:
         return new_id
 
     def save_factor(self, data: Dict[str, Any]) -> int:
-        """새로운 팩터를 저장합니다."""
+        # 💡 AST를 문자열로 변환하여 저장
+        data_to_save = data.copy()
+        if 'ast' in data_to_save:
+            # ast 객체의 문자열 표현을 저장합니다.
+            data_to_save['ast'] = str(data_to_save['ast']) 
+            
         self._factor_id_counter += 1
         new_id = self._factor_id_counter
-        data['id'] = new_id
-        data['status'] = 'new' # 'new', 'evaluating', 'evaluated'
-        self.factors.loc[len(self.factors)] = pd.Series(data)
+        data_to_save['id'] = new_id
+        data_to_save['status'] = 'new'
+        self.factors.loc[len(self.factors)] = pd.Series(data_to_save)
         return new_id
     
     def save_evaluation(self, data: Dict[str, Any]):
@@ -56,10 +61,13 @@ class DatabaseClient:
         new_hypotheses_df = self.hypotheses[self.hypotheses['status'] == 'new']
         return new_hypotheses_df.to_dict('records')
 
+        
     def get_new_factors(self) -> List[Dict[str, Any]]:
         """평가되지 않은 새로운 팩터들을 가져옵니다."""
         new_factors_df = self.factors[self.factors['status'] == 'new']
-        return new_factors_df.to_dict('records')
+        # 💡 여기서는 formula와 id만 가져오고 ast는 포함시키지 않습니다.
+        # EvalAgent가 formula를 다시 파싱하게 합니다.
+        return new_factors_df[['id', 'formula', 'description']].to_dict('records')
 
     def get_all_hypothesis_texts(self) -> List[str]:
         """모든 가설 텍스트를 리스트로 반환합니다."""
@@ -126,6 +134,7 @@ class DatabaseClient:
             summary_parts.append("- 아직 유의미한 실패 사례가 없습니다.")
 
         return "\n".join(summary_parts)
+
 
 
 
