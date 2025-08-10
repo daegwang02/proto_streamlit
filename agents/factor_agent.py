@@ -63,9 +63,9 @@ class FactorAgent(BaseAgent):
             print(f"\n[가설 #{hyp_id} 처리 중]: {hyp_data['hypothesis']}")
             self.db_client.update_hypothesis_status(hyp_id, 'processing')
             
-            # 1. 가설로부터 팩터 생성 (LLM) - 이 호출만 사용합니다.
             try:
-                # LLMClient의 generate_factor_from_hypothesis가 새로운 파라미터를 받도록 수정되었다고 가정
+                # 모든 단계를 하나의 try 블록에 넣어서 안정성을 높입니다.
+                # 1. 가설로부터 팩터 생성 (LLM)
                 factor_candidate = self.llm_client.generate_factor_from_hypothesis(
                     hypothesis=hyp_data,
                     function_rules=self.function_rules,
@@ -74,53 +74,50 @@ class FactorAgent(BaseAgent):
                 description = factor_candidate['description']
                 formula = factor_candidate['formula']
                 print(f"  - 생성된 공식: {formula}")
-            except Exception as e:
-                print(f"  - ❌ 팩터 생성 실패: {e}")
-                self.db_client.update_hypothesis_status(hyp_id, 'new')
-                continue
 
-            # 2. 팩터 파싱 및 분석
-            try:
+                # 2. 팩터 파싱 및 분석
                 ast = self.parser.parse(formula)
-            except ValueError as e:
-                print(f"  - ❌ 파싱 실패: {e}")
-                self.db_client.update_hypothesis_status(hyp_id, 'new')
-                continue
 
-            # 3. 정규화 지표 계산
-            sl = self.complexity_analyzer.calculate_symbolic_length(ast)
-            pc = self.complexity_analyzer.calculate_parameter_count(ast)
-            originality = self.originality_analyzer.calculate_similarity_score(ast)
-            
-            align_h_d = self.llm_client.score_hypothesis_alignment(hyp_data['hypothesis'], description)
-            align_d_f = self.llm_client.score_description_alignment(description, formula)
-            alignment_score = (align_h_d['score'] * align_d_f['score']) ** 0.5
-            
-            print(f"  - 복잡도(길이/파라미터): {sl}/{pc} | 유사도: {originality:.2f} | 일치도: {alignment_score:.2f}")
+                # 3. 정규화 지표 계산
+                sl = self.complexity_analyzer.calculate_symbolic_length(ast)
+                pc = self.complexity_analyzer.calculate_parameter_count(ast)
+                originality = self.originality_analyzer.calculate_similarity_score(ast)
+                
+                align_h_d = self.llm_client.score_hypothesis_alignment(hyp_data['hypothesis'], description)
+                align_d_f = self.llm_client.score_description_alignment(description, formula)
+                alignment_score = (align_h_d['score'] * align_d_f['score']) ** 0.5
+                
+                print(f"  - 복잡도(길이/파라미터): {sl}/{pc} | 유사도: {originality:.2f} | 일치도: {alignment_score:.2f}")
 
-            # 4. 팩터 유효성 검증
-            if sl > self.max_complexity_sl or pc > self.max_complexity_pc or originality > self.max_similarity or alignment_score < self.min_alignment:
-                print(f"  - ❌ 검증 실패: 유효성 기준 미달. (SL:{sl}, PC:{pc}, Sim:{originality:.2f}, Align:{alignment_score:.2f})")
-                self.db_client.update_hypothesis_status(hyp_id, 'new')
-            else:
-                # 5. 검증 통과 시 데이터베이스에 저장
-                factor_data = {
-                    'hypothesis_id': hyp_id,
-                    'description': description,
-                    'formula': formula,
-                    'ast': ast,
-                    'complexity_sl': sl,
-                    'complexity_pc': pc,
-                    'originality_score': originality,
-                    'alignment_score': alignment_score,
-                }
-                factor_id = self.db_client.save_factor(factor_data)
-                print(f"  - ✅ 검증 통과: 새로운 팩터 #{factor_id} 저장 완료.")
-
-            self.db_client.update_hypothesis_status(hyp_id, 'done')
-
+                # 4. 팩터 유효성 검증
+                if sl > self.max_complexity_sl or pc > self.max_complexity_pc or originality > self.max_similarity or alignment_score < self.min_alignment:
+                    print(f"  - ❌ 검증 실패: 유효성 기준 미달. (SL:{sl}, PC:{pc}, Sim:{originality:.2f}, Align:{alignment_score:.2f})")
+                    self.db_client.update_hypothesis_status(hyp_id, 'new')
+                else:
+                    # 5. 검증 통과 시 데이터베이스에 저장
+                    factor_data = {
+                        'hypothesis_id': hyp_id,
+                        'description': description,
+                        'formula': formula,
+                        'ast': ast,
+                        'complexity_sl': sl,
+                        'complexity_pc': pc,
+                        'originality_score': originality,
+                        'alignment_score': alignment_score,
+                    }
+                    factor_id = self.db_client.save_factor(factor_data)
+                    print(f"  - ✅ 검증 통과: 새로운 팩터 #{factor_id} 저장 완료.")
+                
+            except Exception as e:
+                # 어떤 오류가 발생했든, 이 블록에서 모두 처리합니다.
+                print(f"  - ❌ 처리 실패: {e}")
+                self.db_client.update_hypothesis_status(hyp_id, 'new') # 오류 발생 시 가설 상태를 'new'로 복구
+                
+            finally:
+                # 모든 처리가 끝나면 가설 상태를 'done'으로 업데이트합니다.
+                self.db_client.update_hypothesis_status(hyp_id, 'done')
+        
         print("\n--- FactorAgent 실행 종료 ---\n")
-
 
 
 
