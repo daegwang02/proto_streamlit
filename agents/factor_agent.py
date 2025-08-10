@@ -95,7 +95,7 @@ class FactorAgent(BaseAgent):
                         'hypothesis_id': hyp_id,
                         'description': description,
                         'formula': formula,
-                        'ast': ast,
+                        'ast': str(ast),
                         'complexity_sl': sl,
                         'complexity_pc': pc,
                         'originality_score': originality,
@@ -117,6 +117,7 @@ class FactorAgent(BaseAgent):
                 self.db_client.update_hypothesis_status(hyp_id, 'done')
         
         print("\n--- FactorAgent 실행 종료 ---\n")
+
 
 
 
