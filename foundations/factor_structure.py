@@ -77,15 +77,26 @@ class FactorParser:
 
     def _parse_primary(self) -> ASTNode:
         token = self._peek()
+
+        # 음수 처리
         if token == '-':
             self._consume()
             return OperatorNode('neg', [self._parse_primary()])
+
+        # 숫자 리터럴
         if token.replace('.', '', 1).isdigit():
             return LiteralNode(float(self._consume()))
+
+        # 변수 또는 함수 호출
         if token.isalnum() or '_' in token or '.' in token:
-            self._consume()
-            if self._peek() == '(':
-                self._consume()
+            op_name = self._consume()
+            
+            # 💡 연산자 이름을 소문자로 변환하여 일관성을 확보
+            # 예: 'Ts_Rank' -> 'ts_rank'
+            processed_op_name = op_name.lower()
+
+            if self._peek() == '(': # 함수 호출인 경우
+                self._consume() # '(' 소비
                 args = []
                 if self._peek() != ')':
                     while True:
@@ -94,17 +105,19 @@ class FactorParser:
                             break
                         if self._peek() != ',':
                             raise ValueError("함수 인자 사이에 콤마(,)가 필요합니다.")
-                        self._consume()
-                self._consume()
-                return OperatorNode(token, args)
-            else:
-                return VariableNode(token)
+                        self._consume() # ',' 소비
+                self._consume() # ')' 소비
+                return OperatorNode(processed_op_name, args)
+            else: # 변수인 경우
+                return VariableNode(op_name) # 변수는 원래 이름 그대로 사용
+            # 괄호 표현식
         if token == '(':
             self._consume()
             expr = self._parse_expression()
             if self._consume() != ')':
                 raise ValueError("괄호가 닫히지 않았습니다.")
             return expr
+
         raise ValueError(f"예상치 못한 토큰입니다: {token}")
 
     def _parse_binary_op(self, parse_next_level, ops: List[str]) -> ASTNode:
@@ -272,6 +285,7 @@ class OriginalityAnalyzer:
 #     similarity3 = originality_analyzer.calculate_similarity_score(new_ast)
 #     print(f"\n테스트 공식 4 (유사도 낮음 예상): {new_formula_for_test}")
 #     print(f"-> Alpha Zoo와의 유사도 점수: {similarity3:.4f} (0에 가까울수록 독창적)")
+
 
 
 
