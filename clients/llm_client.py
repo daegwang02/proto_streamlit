@@ -65,7 +65,6 @@ class LLMClient:
     def generate_hypothesis(self, external_knowledge: str, existing_hypotheses: List[str], feedback_summary: str) -> Dict[str, Any]:
         """
         시장 가설을 생성합니다. (IdeaAgent가 사용)
-        
         """
         prompt = f"""
         당신은 월스트리트의 저명한 퀀트 분석가입니다. 당신의 임무는 새로운 알파 팩터를 발굴하기 위한 창의적이고 논리적인 시장 가설을 수립하는 것입니다.
@@ -115,15 +114,13 @@ class LLMClient:
                                     hypothesis: Dict[str, Any],
                                     function_rules: str,
                                     syntax_rules: str,
-                                    existing_factors: List[str] = []
-    ) -> Dict[str, str]:
+                                    existing_factors: List[str] = []) -> Dict[str, str]:
         """
         주어진 가설로부터 팩터 설명과 공식을 생성합니다.
         """
     # 기존 프롬프트에 function_rules와 syntax_rules를 추가하여 프롬프트를 강화합니다.
         prompt = f"""
         당신은 퀀트 개발자입니다. 주어진 시장 가설을 실행 가능한 알파 팩터로 변환하는 것이 당신의 역할입니다.
-
         --- [시장 가설] ---
         - 지식: {hypothesis.get('knowledge')}
         - 관찰: {hypothesis.get('market_observation')}
@@ -131,7 +128,6 @@ class LLMClient:
         - 가설: {hypothesis.get('hypothesis')}
         - 조건: {hypothesis.get('specification')}
         --- [시장 가설 끝] ---
-    
         --- [팩터 공식 규칙] ---
         {function_rules}
         {syntax_rules}
@@ -226,6 +222,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
