@@ -85,7 +85,7 @@ class FactorAgent(BaseAgent):
                 # 4. 팩터 유효성 검증
                 if sl > self.max_complexity_sl or pc > self.max_complexity_pc or originality > self.max_similarity or alignment_score < self.min_alignment:
                 # ...
-                self.db_client.update_hypothesis_status(hyp_id, 'new')
+                    self.db_client.update_hypothesis_status(hyp_id, 'new')
             else:
                 factor_data = {
                     'hypothesis_id': hyp_id,
@@ -113,6 +113,7 @@ class FactorAgent(BaseAgent):
                 self.db_client.update_hypothesis_status(hyp_id, 'done')
         
         print("\n--- FactorAgent 실행 종료 ---\n")
+
 
 
 
