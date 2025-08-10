@@ -1,5 +1,5 @@
 # clients/llm_client.py
-import google.generativeai as genai
+import openai
 import json
 import time
 import re
@@ -10,36 +10,35 @@ class LLMClient:
     Google Gemini API와 상호작용하여 LLM의 기능을 활용하는 클라이언트입니다.
     """
     def __init__(self, api_key: str):
-       # API 키 유효성 검사 로직을 Gemini에 맞게 수정
-        if not api_key or api_key.strip() == "" or not api_key.startswith("AIza"):
-            raise ValueError("Google Gemini API 키가 잘못되었거나 설정되지 않았습니다.")
+        """
+        LLM 클라이언트를 초기화하고 API를 설정합니다.
+        
+        Args:
+            api_key (str): OpenAI에서 발급받은 API 키입니다.
+        """
+        if not api_key or api_key.strip() == "" or not api_key.startswith("sk-"):
+            raise ValueError("OpenAI API 키가 잘못되었거나 설정되지 않았습니다.")
             
-        genai.configure(api_key=api_key)
-        
-        # 일관성 있는 출력을 위해 생성 설정을 지정합니다.
-        self.generation_config = {
-            "temperature": 0.2,
-            "top_p": 1.0,
-            "top_k": 32,
-            "max_output_tokens": 4096,
-        }
-        
-        # 사용할 모델을 지정합니다.
-        self.model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
-            generation_config=self.generation_config
-        )
+        self.client = openai.OpenAI(api_key=api_key)
+        self.model = "gpt-4o-mini" # 모델명을 원하는 대로 설정할 수 있습니다
+        self.temperature = 0.2
+        self.top_p = 1.0
+        self.max_tokens = 4096
     
-    def _send_request(self, prompt: str, retries=3, delay=5) -> str:
+    def _send_request(self, prompt: str, retries=5, delay=10) -> str:
         """
         주어진 프롬프트를 API에 전송하고, 재시도 로직을 포함하여 응답을 받습니다.
         """
         for i in range(retries):
             try:
-                # 💡 self.client 대신 self.model을 사용하도록 수정합니다.
-                chat_session = self.model.start_chat()
-                response = chat_session.send_message(prompt)
-                return response.text
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    top_p=self.top_p,
+                    max_tokens=self.max_tokens
+                )
+                return response.choices[0].message.content
             except Exception as e:
                 print(f"LLM API 호출 중 오류 발생: {e}. {delay}초 후 재시도합니다... ({i+1}/{retries})")
                 time.sleep(delay)
@@ -228,6 +227,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
