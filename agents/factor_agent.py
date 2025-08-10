@@ -64,6 +64,7 @@ class FactorAgent(BaseAgent):
             self.db_client.update_hypothesis_status(hyp_id, 'processing')
             
             try:
+                # 모든 단계를 하나의 try 블록에 넣어 안정성을 높입니다.
                 # 1. 가설로부터 팩터 생성 (LLM)
                 factor_candidate = self.llm_client.generate_factor_from_hypothesis(
                     hypothesis=hyp_data,
@@ -108,8 +109,7 @@ class FactorAgent(BaseAgent):
                     print(f"  - ✅ 검증 통과: 새로운 팩터 #{factor_id} 저장 완료.")
                 
             except Exception as e:
-                # 오류 발생 시 가설 상태를 'failed'로 변경하고,
-                # EvalAgent가 이 팩터를 평가하지 않도록 합니다.
+                # 오류 발생 시 가설 상태를 'failed'로 변경합니다.
                 print(f"  - ❌ 처리 실패: {e}")
                 self.db_client.update_hypothesis_status(hyp_id, 'failed')
             else:
@@ -117,6 +117,7 @@ class FactorAgent(BaseAgent):
                 self.db_client.update_hypothesis_status(hyp_id, 'done')
         
         print("\n--- FactorAgent 실행 종료 ---\n")
+
 
 
 
