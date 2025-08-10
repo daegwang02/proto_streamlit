@@ -262,7 +262,8 @@ if 'analysis_done' not in st.session_state: st.session_state.analysis_done = Fal
 # --- 4. 사이드바 (설정) ---
 with st.sidebar:
     st.header("⚙️ 설정")
-    st.info("API 키는 Secrets 설정에 `OPENAI_API_KEY`로 등록되어야 합니다.")
+    # 💡 API 키 설명을 Gemini에 맞게 수정
+    st.info("API 키는 Secrets 설정에 `GEMINI_API_KEY`로 등록되어야 합니다.")
 
     external_knowledge = st.text_area(
         "💡 AI에게 제공할 시장 분석 정보 (선택)",
@@ -299,16 +300,16 @@ if start_button:
     st.session_state.best_factor_info = None
 
     try:
-        # 모든 키와 URL을 st.secrets에서 불러옵니다.
-        llm_client = LLMClient(api_key=st.secrets.OPENAI_API_KEY)
-        # ⚠️ DatabaseClient는 인자 없이 초기화합니다.
+        # 💡 st.secrets에서 GEMINI_API_KEY를 불러와 LLMClient에 전달
+        llm_client = LLMClient(api_key=st.secrets.GEMINI_API_KEY)
+        
+        # DatabaseClient와 BacktesterClient는 Secrets의 다른 값들을 사용
         db_client = DatabaseClient(
             data_url=st.secrets.KOR_STOCK_DATA_URL,
             transaction_fee_buy=st.secrets.TRANSACTION_FEE_BUY,
             transaction_fee_sell=st.secrets.TRANSACTION_FEE_SELL
         )
         
-        # ⚠️ BacktesterClient는 올바른 인자로 초기화합니다.
         backtester_client = BacktesterClient(
             data_url=st.secrets.KOR_STOCK_DATA_URL,
             transaction_fee_buy=st.secrets.TRANSACTION_FEE_BUY,
@@ -389,6 +390,7 @@ if start_button:
             else:
                 st.error("분석을 통해 유의미한 팩터를 찾지 못했습니다.")
                 status.update(label="분석 실패.", state="error")
+
 
 
 
