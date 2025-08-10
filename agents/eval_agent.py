@@ -1,4 +1,4 @@
-# agents/eval_agent.py
+# agents/eval_agent.py (두 번째 버전)
 
 from .base_agent import BaseAgent
 from clients.database_client import DatabaseClient
@@ -26,20 +26,15 @@ class EvalAgent(BaseAgent):
 
         for factor_record in new_factors:
             factor_id = factor_record['id']
-            formula = factor_record.get('formula', 'N/A')
+            formula = factor_record['formula']
+            ast = factor_record['ast']
             
-            # ✅ 모든 단계를 하나의 try 블록으로 감싸서 안정성을 높입니다.
-            try:
-                # ast 키가 있는지 먼저 확인하여 KeyError를 방지합니다.
-                if 'ast' not in factor_record:
-                    raise KeyError("팩터 정보에 'ast' 키가 누락되었습니다.")
-                
-                ast = factor_record['ast']
-                
-                print(f"\n[팩터 #{factor_id} 평가 중]: {formula}")
-                self.db_client.update_factor_status(factor_id, 'evaluating')
+            print(f"\n[팩터 #{factor_id} 평가 중]: {formula}")
+            self.db_client.update_factor_status(factor_id, 'evaluating')
 
+            try:
                 # 백테스터를 실행하여 성과 지표를 얻음
+                # 참고: 백테스터 클라이언트가 내부적으로 팩터 값 계산 및 캐싱을 처리
                 performance_metrics = self.backtester_client.run_full_backtest(formula, ast)
                 
                 # 평가 결과를 DB에 저장
@@ -53,3 +48,4 @@ class EvalAgent(BaseAgent):
                 self.db_client.update_factor_status(factor_id, 'failed')
         
         print("\n--- EvalAgent 실행 종료 ---\n")
+
