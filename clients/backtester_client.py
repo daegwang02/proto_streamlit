@@ -665,17 +665,26 @@ class BacktesterClient:
                 # 자식 노드들의 값을 재귀적으로 먼저 계산
                 children_values = [self._execute_ast(child, market_data) for child in node.children]
 
-                # 💡 추가된 방어 코드: 'window' 파라미터를 받는 함수에 대해 타입 체크
-                window_ops = ['ts_mean', 'ts_std', 'ts_rank', 'delay', 'delta', 'ts_min', 'ts_max', 'correlation', 'covariance', 'count', 'sum', 'median', 'skew', 'kurt', 'wma']
-                if op_name in window_ops and len(children_values) > 1:
-                    # 두 번째 인자가 window 값일 경우, 정수형인지 확인
+                # 💡 수정된 방어 코드: 'window' 파라미터 위치를 정확히 체크
+                window_ops_2_args = ['ts_mean', 'ts_std', 'ts_rank', 'delay', 'delta', 'ts_min', 'ts_max', 'count', 'sum', 'median', 'skew', 'kurt', 'wma']
+                window_ops_3_args = ['correlation', 'covariance']
+                
+                window_arg = None
+                if op_name in window_ops_2_args and len(children_values) > 1:
                     window_arg = children_values[1]
+                elif op_name in window_ops_3_args and len(children_values) > 2:
+                    window_arg = children_values[2]
+                
+                if window_arg is not None:
                     if not isinstance(window_arg, (int, float)):
                         raise ValueError(f"'{op_name}' 연산자의 window 값은 숫자여야 합니다. 현재 값: {window_arg}")
-                
+                    # float가 넘어와도 안전하게 int로 변환하여 사용
+                    if isinstance(window_arg, float):
+                        children_values[children_values.index(window_arg)] = int(window_arg)
+
                 # OPERATORS 딕셔너리에서 해당 연산자 함수를 찾아 호출
                 op_function = op_lib.OPERATORS[op_name]
-                return op_function(*children_values) # `*`로 인자들을 언패킹하여 전달
+                return op_function(*children_values)
 
             raise NameError(f"정의되지 않은 연산자입니다: {node.op}")
         
@@ -785,6 +794,7 @@ class BacktesterClient:
         
         print("백테스팅 완료.")
         return results
+
 
 
 
