@@ -664,6 +664,14 @@ class BacktesterClient:
             if op_name in op_lib.OPERATORS:
                 # 자식 노드들의 값을 재귀적으로 먼저 계산
                 children_values = [self._execute_ast(child, market_data) for child in node.children]
+
+                # 💡 추가된 방어 코드: 'window' 파라미터를 받는 함수에 대해 타입 체크
+                window_ops = ['ts_mean', 'ts_std', 'ts_rank', 'delay', 'delta', 'ts_min', 'ts_max', 'correlation', 'covariance', 'count', 'sum', 'median', 'skew', 'kurt', 'wma']
+                if op_name in window_ops and len(children_values) > 1:
+                    # 두 번째 인자가 window 값일 경우, 정수형인지 확인
+                    window_arg = children_values[1]
+                    if not isinstance(window_arg, (int, float)):
+                        raise ValueError(f"'{op_name}' 연산자의 window 값은 숫자여야 합니다. 현재 값: {window_arg}")
                 
                 # OPERATORS 딕셔너리에서 해당 연산자 함수를 찾아 호출
                 op_function = op_lib.OPERATORS[op_name]
@@ -777,6 +785,7 @@ class BacktesterClient:
         
         print("백테스팅 완료.")
         return results
+
 
 
 
