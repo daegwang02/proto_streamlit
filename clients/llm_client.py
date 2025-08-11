@@ -127,15 +127,72 @@ class LLMClient:
         - 조건: {hypothesis.get('specification')}
         --- [시장 가설 끝] ---
 
+        [허용된 연산자 및 변수 목록]
+        **오직 다음 목록에 있는 연산자와 변수만 사용해야 합니다. 다른 형태나 기호는 사용할 수 없습니다.**
+
+        **1. 횡단면 연산자 (단일 인자):**
+        - `rank(series)`: 시리즈 값의 순위를 백분율로 반환
+        - `scale(series)`: 시리즈 값을 -0.5 ~ 0.5 범위로 스케일링
+
+        **2. 시계열 연산자 (시리즈 및 윈도우/기간 인자):**
+        - `ts_mean(series, window)`: 특정 기간의 이동 평균
+        - `ts_std(series, window)`: 특정 기간의 이동 표준 편차
+        - `ts_rank(series, window)`: 특정 기간 내 시리즈 값의 순위 (백분율)
+        - `delay(series, period)`: 이전 기간의 값 반환
+        - `delta(series, period)`: 현재 값과 이전 기간 값의 차이
+        - `ts_min(series, window)`: 특정 기간의 최소값
+        - `ts_max(series, window)`: 특정 기간의 최대값
+        - `correlation(series1, series2, window)`: 두 시리즈 간의 상관관계
+        - `covariance(series1, series2, window)`: 두 시리즈 간의 공분산
+        - `count(series, window)`: 특정 기간 내 유효한(NaN이 아닌) 값의 개수
+        - `sum(series, window)`: 특정 기간의 합계
+        - `median(series, window)`: 특정 기간의 중앙값
+        - `skew(series, window)`: 특정 기간의 왜도
+        - `kurt(series, window)`: 특정 기간의 첨도
+        - `wma(series, window)`: 특정 기간의 가중 이동 평균
+
+        **3. 산술 연산자 (함수 형태):**
+        - `add(value1, value2)`: 두 값의 합 (`+` 기호 대신 사용)
+        - `subtract(value1, value2)`: 두 값의 차이 (`-` 기호 대신 사용)
+        - `multiply(value1, value2)`: 두 값의 곱 (`*` 기호 대신 사용)
+        - `divide(value1, value2)`: 두 값의 나눗셈 (`/` 기호 대신 사용)
+        - `power(base, exponent)`: 거듭제곱 (`**` 기호 대신 사용)
+
+        **4. 단항 연산자 (단일 인자):**
+        - `negate(value)`: 음수 값으로 변환
+        - `abs(value)`: 절대값
+        - `log(value)`: 자연로그
+        - `sign(value)`: 값의 부호 (-1, 0, 1)
+
+        **5. 논리 연산자 (불리언 인자):**
+        - `and(condition1, condition2, ...)`: 모든 조건이 True일 때 True
+        - `or(condition1, condition2, ...)`: 하나라도 조건이 True일 때 True
+        - `not(condition)`: 조건의 반대 (True -> False, False -> True)
+
+        **6. 비교 연산자 (함수 형태):**
+        - `gt(value1, value2)`: value1이 value2보다 클 때 True (`>` 기호 대신 사용)
+        - `ge(value1, value2)`: value1이 value2보다 크거나 같을 때 True (`>=` 기호 대신 사용)
+        - `lt(value1, value2)`: value1이 value2보다 작을 때 True (`<` 기호 대신 사용)
+        - `le(value1, value2)`: value1이 value2보다 작거나 같을 때 True (`<=` 기호 대신 사용)
+        - `eq(value1, value2)`: value1과 value2가 같을 때 True (`==` 기호 대신 사용)
+        - `ne(value1, value2)`: value1과 value2가 다를 때 True (`!=` 기호 대신 사용)
+
+        **7. 삼항 연산자:**
+        - `if(condition, true_value, false_value)`: 조건이 True면 true_value, False면 false_value
+
+        **8. 사용 가능한 데이터 변수:**
+        - `volume`, `close`, `open`, `high`, `low`, `vwap`, `returns`, `adv` (예: `adv20`)
+
+        ---
+
         [팩터 공식 생성 규칙]
-        1. **단순성**: 팩터는 최대한 간결하고 단순하게 작성해야 합니다. 복잡한 중첩 함수나 불필요한 연산은 피하세요.
-        2. **유효 연산자**: `ts_mean`, `ts_max`, `ts_min`, `rank`, `delta`, `correlation`, `if`, `and`, `or`, `volume`, `close`, `open`, `high`, `low`, `vwap`, `returns`, `adv` 등의 함수와 변수만 사용하세요.
-        3. **함수 호출 규칙**: 모든 함수 호출은 `함수명(인수, ...)` 형식이어야 합니다.
-        4. **논리 및 비교 연산자 사용법**: `and`, `or`, `if` 함수는 논리적 조건을 처리하는 데 사용됩니다. **`> , < , ==` 같은 기호 연산자 대신, `gt`, `lt`, `eq` 같은 함수를 사용하세요.**
-            - **올바른 예시**: `and(gt(close, ts_mean(close, 20)), gt(volume, ts_mean(volume, 20)))`
-            - **잘못된 예시**: `and(close > ts_mean(close, 20), volume > ts_mean(volume, 20))`
-        5. **복합 조건**: `if()` 함수 내에서 복합적인 조건을 사용할 때는 `and(조건1, 조건2)` 또는 `or(조건1, 조건2)`를 `if`의 첫 번째 인자로 사용하세요.
-        6. **인덱싱 방지**: `close[5]`와 같은 직접적인 인덱싱은 사용하지 마세요. 대신 `delay(close, 5)`와 같은 함수를 사용하세요.
+        1. **함수 형태 사용 엄수**: 위 목록에 제시된 **모든 연산자는 반드시 함수 형태로만 사용해야 합니다.** 특히 산술(`+`, `-`, `*`, `/`) 및 비교(`>`, `<`, `==`, `>=`, `<=`, `!=`) 기호는 절대 사용해서는 안 됩니다. 해당 함수명(예: `multiply`, `gt`)을 사용하세요.
+        2. **단순성**: 팩터 공식은 가설을 명확히 반영하면서도 최대한 간결하게 작성해야 합니다. 불필요한 중첩이나 복잡한 구조는 피하세요.
+        3. **함수 호출 구문**: 모든 함수 호출은 `함수명(인수1, 인수2, ...)` 형식을 엄격하게 준수해야 합니다.
+        4. **논리 연산자 인자**: `and()`와 `or()` 함수는 **오직 불리언 값(예: `gt()` 함수의 결과)만을 인자로 받아야 합니다.** `if()` 함수를 `and()` 또는 `or()`의 직접적인 인자로 사용하지 마세요.
+        5. **복합 조건 처리**: `if()` 함수 내에서 여러 조건을 결합할 때는 `and(조건1, 조건2)` 또는 `or(조건1, 조건2)`를 `if`의 첫 번째 인자로 사용하세요.
+        6. **인덱싱 금지**: `close[5]`와 같은 직접적인 배열 인덱싱은 사용하지 마세요. 대신 `delay(close, 5)`와 같은 적절한 시계열 함수를 사용하세요.
+        7. **새로운 연산자 생성 금지**: 위에 정의된 연산자 목록 외의 새로운 연산자나 함수를 만들어내지 마세요.
 
 
         이 가설을 구현하기 위한 팩터의 '설명(description)'과 '공식(formula)'을 생성해주십시오.
@@ -229,6 +286,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
