@@ -131,13 +131,12 @@ class LLMClient:
         1. **단순성**: 팩터는 최대한 간결하고 단순하게 작성해야 합니다. 복잡한 중첩 함수나 불필요한 연산은 피하세요.
         2. **유효 연산자**: `ts_mean`, `ts_max`, `ts_min`, `rank`, `delta`, `correlation`, `if`, `and`, `or`, `volume`, `close`, `open`, `high`, `low`, `vwap`, `returns`, `adv` 등의 함수와 변수만 사용하세요.
         3. **함수 호출 규칙**: 모든 함수 호출은 `함수명(인수, ...)` 형식이어야 합니다.
-        4. **논리 연산자 사용법**: `and`, `or` 함수는 **오직 두 개 이상의 불리언 값(True/False)만을 인자로 받아야 합니다.** `and()`나 `or()` 함수 내부에 `if()` 함수를 직접 사용하는 것을 피하세요.
-            - **올바른 예시**: `and(close > ts_mean(close, 20), volume > ts_mean(volume, 20))`
-            - **잘못된 예시**: `and(if(조건1, true, false), if(조건2, true, false))`
+        4. **논리 및 비교 연산자 사용법**: `and`, `or`, `if` 함수는 논리적 조건을 처리하는 데 사용됩니다. **`> , < , ==` 같은 기호 연산자 대신, `gt`, `lt`, `eq` 같은 함수를 사용하세요.**
+            - **올바른 예시**: `and(gt(close, ts_mean(close, 20)), gt(volume, ts_mean(volume, 20)))`
+            - **잘못된 예시**: `and(close > ts_mean(close, 20), volume > ts_mean(volume, 20))`
         5. **복합 조건**: `if()` 함수 내에서 복합적인 조건을 사용할 때는 `and(조건1, 조건2)` 또는 `or(조건1, 조건2)`를 `if`의 첫 번째 인자로 사용하세요.
-            - **예시**: `if(and(close > ts_mean(close, 10), volume > ts_mean(volume, 5)), 1, -1)`
-        6. **오류 방지**: 공식에 `and`나 `or` 같은 논리 연산자를 직접 사용하지 말고, 반드시 함수 형태로 사용하세요.
-        7. **인덱싱 방지**: `close[5]`와 같은 직접적인 인덱싱은 사용하지 마세요. 대신 `delay(close, 5)`와 같은 함수를 사용하세요.
+        6. **인덱싱 방지**: `close[5]`와 같은 직접적인 인덱싱은 사용하지 마세요. 대신 `delay(close, 5)`와 같은 함수를 사용하세요.
+
 
         이 가설을 구현하기 위한 팩터의 '설명(description)'과 '공식(formula)'을 생성해주십시오.
         - '설명'은 이 팩터가 무엇을 측정하고 어떤 논리로 작동하는지 자연어로 명확하게 서술해야 합니다.
@@ -230,6 +229,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
