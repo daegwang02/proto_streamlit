@@ -649,7 +649,12 @@ class BacktesterClient:
             # 'adv' 시리즈 같은 파생변수 처리
             if node.name.startswith('adv'):
                 try:
-                    days = int(node.name[3:])
+                    if len(node.name) > 3:
+                            days = int(node.name[3:])
+                    else:
+                    # adv만 있는 경우 기본값을 설정하거나 오류를 명확히 함
+                            raise NameError(f"adv 변수는 윈도우 크기를 포함해야 합니다 (예: adv20).")
+                
                     turnover_col = market_data['close'] * market_data['volume']
                     return turnover_col.groupby(level='ticker').rolling(window=days, min_periods=1).mean().reset_index(0, drop=True)
                 except:
@@ -794,6 +799,7 @@ class BacktesterClient:
         
         print("백테스팅 완료.")
         return results
+
 
 
 
