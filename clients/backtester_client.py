@@ -622,10 +622,10 @@ class BacktesterClient:
         df[['open', 'high', 'low', 'close', 'volume']] = df.groupby('ticker')[['open', 'high', 'low', 'close', 'volume']].ffill()
         df.dropna(inplace=True)
 
-        df.rename(columns={'close': 'price'}, inplace=True)
+        # df.rename(columns={'close': 'price'}, inplace=True)
         
         # 파생 변수(피처) 계산
-        df['daily_turnover'] = df['price'] * df['volume']
+        df['daily_turnover'] = df['close'] * df['volume']
         df['adv20'] = df.groupby(level='ticker')['daily_turnover'].rolling(window=20, min_periods=1).mean().reset_index(level=0, drop=True)
         # 필요한 다른 adv 파생 변수도 여기에 추가할 수 있습니다.
         
@@ -643,14 +643,14 @@ class BacktesterClient:
         if isinstance(node, VariableNode):
             # 'returns'와 같은 동적 변수 처리
             if node.name == 'returns':
-                return market_data.groupby('ticker')['price'].pct_change()
+                return market_data.groupby('ticker')['close'].pct_change()
             if node.name in market_data.columns:
                 return market_data[node.name]
             # 'adv' 시리즈 같은 파생변수 처리
             if node.name.startswith('adv'):
                 try:
                     days = int(node.name[3:])
-                    turnover_col = market_data['price'] * market_data['volume']
+                    turnover_col = market_data['close'] * market_data['volume']
                     return turnover_col.groupby(level='ticker').rolling(window=days, min_periods=1).mean().reset_index(0, drop=True)
                 except:
                     raise NameError(f"adv 파생 변수 파싱 오류: {node.name}")
@@ -687,13 +687,13 @@ class BacktesterClient:
     def _prepare_data_for_model(self, new_factor: pd.Series) -> Tuple[pd.DataFrame, pd.Series]:
         market_data = self._load_data().copy()
         base_features = pd.DataFrame(index=market_data.index)
-        base_features['intra_ret'] = (market_data['price'] - market_data['open']) / market_data['open']
-        base_features['daily_ret'] = market_data.groupby('ticker')['price'].pct_change()
+        base_features['intra_ret'] = (market_data['close'] - market_data['open']) / market_data['open']
+        base_features['daily_ret'] = market_data.groupby('ticker')['close'].pct_change()
         vol_mean_20 = market_data.groupby('ticker')['volume'].rolling(20).mean().reset_index(level=0, drop=True)
         base_features['vol_ratio_20'] = market_data['volume'] / vol_mean_20
-        base_features['range_norm'] = (market_data['high'] - market_data['low']) / market_data['price']
+        base_features['range_norm'] = (market_data['high'] - market_data['low']) / market_data['close']
         X = pd.concat([base_features, new_factor.rename('new_factor')], axis=1)
-        y = market_data.groupby('ticker')['price'].pct_change().shift(-1)
+        y = market_data.groupby('ticker')['close'].pct_change().shift(-1)
         y.name = 'target'
         data = pd.concat([X, y], axis=1).dropna()
         return data.drop(columns='target'), data['target']
@@ -777,5 +777,6 @@ class BacktesterClient:
         
         print("백테스팅 완료.")
         return results
+
 
 
