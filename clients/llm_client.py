@@ -181,7 +181,8 @@ class LLMClient:
         - `if(condition, true_value, false_value)`: 조건이 True면 true_value, False면 false_value
 
         **8. 사용 가능한 데이터 변수:**
-        - `volume`, `close`, `open`, `high`, `low`, `vwap`, `returns`, `adv` (예: `adv20`)
+        - `volume`, `close`, `open`, `high`, `low`, `vwap`, `returns`, `adv(window)`:
+            - `adv`는 반드시 윈도우 크기(예: 20)를 포함하여 `adv20`과 같은 형태로 사용해야 합니다.
 
         ---
 
@@ -286,6 +287,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
