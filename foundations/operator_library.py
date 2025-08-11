@@ -12,6 +12,7 @@ import pandas as pd
 
 OPERATORS = {
     # 횡단면(Cross-sectional) 연산자
+    # 횡단면(Cross-sectional) 연산자
     'rank': lambda df: df.rank(axis=1, pct=True),
     'scale': lambda df: df.div(df.abs().sum(axis=1), axis=0),
 
@@ -26,16 +27,26 @@ OPERATORS = {
     'correlation': lambda df1, df2, window: df1.rolling(window, min_periods=1).corr(df2),
     'covariance': lambda df1, df2, window: df1.rolling(window, min_periods=1).cov(df2),
     
+    # QLib에서 누락된 연산자 추가
+    'count': lambda df, window: df.rolling(window, min_periods=1).count(),
+    'sum': lambda df, window: df.rolling(window, min_periods=1).sum(),
+    'median': lambda df, window: df.rolling(window, min_periods=1).median(),
+    'skew': lambda df, window: df.rolling(window, min_periods=1).skew(),
+    'kurt': lambda df, window: df.rolling(window, min_periods=1).kurt(),
+    'wma': lambda df, window: df.ewm(span=window, adjust=False).mean(), # WMA는 EMA와 유사한 방식으로 구현
+
     # 산술 연산자
     'add': lambda a, b: a + b,
     'subtract': lambda a, b: a - b,
     'multiply': lambda a, b: a * b,
-    'divide': lambda a, b: a / b.replace(0, np.nan), # 0으로 나누기 방지
-    
+    'divide': lambda a, b: a / b.replace(0, np.nan),
+    'power': lambda a, b: a ** b,
+
     # 단항 연산자
     'negate': lambda a: -a,
     'abs': lambda a: np.abs(a),
-    'log': lambda a: np.log(a.replace(0, np.nan)), # log(0) 방지
+    'log': lambda a: np.log(a.replace(0, np.nan)),
+    'sign': lambda a: np.sign(a),
 
     # 논리 연산자
     'and': lambda a, b: a & b,
@@ -53,3 +64,4 @@ OPERATORS = {
     # 삼항 연산자
     'if': lambda cond, t_val, f_val: np.where(cond, t_val, f_val)
 }
+
