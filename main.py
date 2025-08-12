@@ -488,7 +488,7 @@ if start_button:
     st.session_state.final_report = None
     st.session_state.best_factor_info = None
 
-   try:
+    try:
         # 💡 Secrets 값을 출력하여 확인하는 디버깅 코드
         st.write("### 디버깅: Secrets 내용")
         st.write(st.secrets)
@@ -620,6 +620,7 @@ with st.expander("🔍 전체 분석 과정 로그 보기"):
     st.dataframe(st.session_state.db.hypotheses if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.factors if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.evaluations if st.session_state.db else pd.DataFrame(), use_container_width=True)
+
 
 
 
