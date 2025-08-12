@@ -1,9 +1,68 @@
 # agents/eval_agent.py (두 번째 버전)
 
+# from .base_agent import BaseAgent
+# from clients.database_client import DatabaseClient
+# from clients.backtester_client import BacktesterClient
+# from foundations.factor_structure import FactorParser
+
+# class EvalAgent(BaseAgent):
+#     """
+#     새롭게 생성된 팩터들의 성과를 백테스팅하여 평가하는 에이전트입니다.
+#     """
+#     def __init__(self, db_client: DatabaseClient, backtester_client: BacktesterClient):
+#         self.db_client = db_client
+#         self.backtester_client = backtester_client
+
+#     def run(self):
+#         """
+#         데이터베이스에 있는 새로운 팩터들을 평가합니다.
+#         """
+#         print("\n--- EvalAgent 실행: 신규 팩터 평가 시작 ---")
+#         new_factors = self.db_client.get_new_factors()
+        
+#         if not new_factors:
+#             print("EvalAgent: 평가할 새로운 팩터가 없습니다.")
+#             print("--- EvalAgent 실행 종료 ---\n")
+#             return
+
+#         for factor_record in new_factors:
+#             factor_id = factor_record['id']
+#             formula = factor_record['formula']
+            
+#             # 💡 formula를 재파싱하여 ast 객체 다시 생성
+#             try:
+#                 parser = FactorParser()
+#                 ast = parser.parse(formula)
+#             except Exception as e:
+#                 print(f"  - ❌ AST 재파싱 실패: {e}")
+#                 self.db_client.update_factor_status(factor_id, 'failed')
+#                 continue # 다음 팩터로 넘어감
+            
+#             print(f"\n[팩터 #{factor_id} 평가 중]: {formula}")
+#             self.db_client.update_factor_status(factor_id, 'evaluating')
+
+#             try:
+#                 # 백테스터에 유효한 `ast` 객체 전달
+#                 performance_metrics = self.backtester_client.run_full_backtest(formula, ast)
+                
+#                 # ✅ 평가 결과를 DB에 저장하는 핵심 로직
+#                 eval_data = {'factor_id': factor_id, **performance_metrics}
+#                 self.db_client.save_evaluation(eval_data)
+
+#                 print(f"  - ✅ 평가 완료: IR {performance_metrics.get('IR'):.3f}, MDD {performance_metrics.get('MDD'):.3f}")
+
+#             except Exception as e:
+#                 print(f"  - ❌ 평가 실패: {e}")
+#                 self.db_client.update_factor_status(factor_id, 'failed')
+        
+#         print("\n--- EvalAgent 실행 종료 ---\n")
+
+# agents/eval_agent.py
+
 from .base_agent import BaseAgent
 from clients.database_client import DatabaseClient
 from clients.backtester_client import BacktesterClient
-from foundations.factor_structure import FactorParser
+# from foundations.factor_structure import FactorParser # 💡 FactorParser는 더 이상 필요 없으므로 삭제
 
 class EvalAgent(BaseAgent):
     """
@@ -18,6 +77,8 @@ class EvalAgent(BaseAgent):
         데이터베이스에 있는 새로운 팩터들을 평가합니다.
         """
         print("\n--- EvalAgent 실행: 신규 팩터 평가 시작 ---")
+        # 💡 database_client.py의 get_new_factors()가 ast를 함께 반환하도록 수정되었으므로,
+        #    여기서 ast를 바로 받아서 사용합니다.
         new_factors = self.db_client.get_new_factors()
         
         if not new_factors:
@@ -28,24 +89,16 @@ class EvalAgent(BaseAgent):
         for factor_record in new_factors:
             factor_id = factor_record['id']
             formula = factor_record['formula']
-            
-            # 💡 formula를 재파싱하여 ast 객체 다시 생성
-            try:
-                parser = FactorParser()
-                ast = parser.parse(formula)
-            except Exception as e:
-                print(f"  - ❌ AST 재파싱 실패: {e}")
-                self.db_client.update_factor_status(factor_id, 'failed')
-                continue # 다음 팩터로 넘어감
+            # 💡 DB에서 역직렬화된 AST 객체를 바로 가져와 사용
+            ast = factor_record['ast']
             
             print(f"\n[팩터 #{factor_id} 평가 중]: {formula}")
             self.db_client.update_factor_status(factor_id, 'evaluating')
 
             try:
-                # 백테스터에 유효한 `ast` 객체 전달
+                # 💡 수정된 부분: formula와 ast를 백테스터에 전달
                 performance_metrics = self.backtester_client.run_full_backtest(formula, ast)
                 
-                # ✅ 평가 결과를 DB에 저장하는 핵심 로직
                 eval_data = {'factor_id': factor_id, **performance_metrics}
                 self.db_client.save_evaluation(eval_data)
 
@@ -56,7 +109,6 @@ class EvalAgent(BaseAgent):
                 self.db_client.update_factor_status(factor_id, 'failed')
         
         print("\n--- EvalAgent 실행 종료 ---\n")
-
 
 
 
