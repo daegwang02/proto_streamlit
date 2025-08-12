@@ -9,18 +9,17 @@ class LLMClient:
     """
     Google Gemini API와 상호작용하여 LLM의 기능을 활용하는 클라이언트입니다.
     """
-    def __init__(self, api_key: str):
-        """
-        LLM 클라이언트를 초기화하고 API를 설정합니다.
-        
-        Args:
-            api_key (str): OpenAI에서 발급받은 API 키입니다.
-        """
-        if not api_key or api_key.strip() == "" or not api_key.startswith("sk-"):
-            raise ValueError("OpenAI API 키가 잘못되었거나 설정되지 않았습니다.")
-            
-        self.client = openai.OpenAI(api_key=api_key)
-        self.model = "gpt-4o-mini" # 모델명을 원하는 대로 설정할 수 있습니다
+    def __init__(self, api_key: str = None, **kwargs): # 💡 **kwargs 추가
+        if api_key is None:
+            api_key = os.getenv("OPENAI_API_KEY")
+
+        if not api_key:
+            raise ValueError("OpenAI API 키가 설정되지 않았습니다. 환경 변수 'OPENAI_API_KEY'를 설정하거나 인자로 전달해주세요.")
+
+        # 💡 openai.OpenAI 인스턴스를 생성할 때 **kwargs를 전달
+        #    이렇게 하면 'proxies'와 같은 예상치 못한 인자가 있어도 오류 없이 전달됨
+        self.client = openai.OpenAI(api_key=api_key, **kwargs) 
+        self.model = "gpt-4o-mini"
         self.temperature = 0.2
         self.top_p = 1.0
         self.max_tokens = 4096
@@ -288,6 +287,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
