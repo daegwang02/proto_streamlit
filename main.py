@@ -484,13 +484,14 @@ user_idea = st.text_area(
 
 # 분석 시작 버튼이 눌렸을 때 전체 워크플로우 실행
 if start_button:
-    # 세션 상태 초기화
     st.session_state.analysis_done = True
     st.session_state.final_report = None
     st.session_state.best_factor_info = None
 
     try:
+        # 💡 LLMClient를 초기화할 때 api_key만 명시적으로 전달
         llm_client = LLMClient(api_key=st.secrets.OPENAI_API_KEY)
+
         db_client = DatabaseClient(
             data_url=st.secrets.KOR_STOCK_DATA_URL,
             transaction_fee_buy=st.secrets.TRANSACTION_FEE_BUY,
@@ -501,7 +502,7 @@ if start_button:
             transaction_fee_buy=st.secrets.TRANSACTION_FEE_BUY,
             transaction_fee_sell=st.secrets.TRANSACTION_FEE_SELL
         )
-        
+
         st.session_state.agents = {
             'llm': llm_client,
             'db': db_client,
@@ -614,6 +615,7 @@ with st.expander("🔍 전체 분석 과정 로그 보기"):
     st.dataframe(st.session_state.db.hypotheses if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.factors if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.evaluations if st.session_state.db else pd.DataFrame(), use_container_width=True)
+
 
 
 
