@@ -27,9 +27,11 @@ bayesian-optimization==1.4.0
 # LLM Client
 openai==1.35.13
 requests==2.32.3
+httpx # 💡 httpx 라이브러리 추가
 
 # Streamlit UI
 streamlit
 
 # Utilities
 tqdm
+
