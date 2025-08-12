@@ -1,4 +1,17 @@
+# 이전에 제안했던 수정사항을 반영합니다.
+
+# Pip, setuptools, wheel을 최신 버전으로 업그레이드하여
+# Streamlit 환경에서 바이너리(wheel) 설치가 원활하게 이루어지도록 합니다.
+pip>=24.0
+setuptools>=70.0
+wheel>=0.44.0
+
+# 사전 빌드된 바이너리(wheel)만 설치하도록 강제하여 컴파일 과정을 생략합니다.
+# 이로써 Streamlit Cloud와 같은 제한된 환경에서 설치 속도가 크게 향상됩니다.
+--only-binary=:all:
+
 # Data Handling
+# Pandas와 NumPy를 명시적으로 최신 버전으로 설치합니다.
 pandas==2.2.2
 numpy==1.26.4
 pyarrow==16.1.0
