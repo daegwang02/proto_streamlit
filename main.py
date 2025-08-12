@@ -488,9 +488,14 @@ if start_button:
     st.session_state.final_report = None
     st.session_state.best_factor_info = None
 
-    try:
-        # 💡 LLMClient를 초기화할 때 api_key만 명시적으로 전달
+   try:
+        # 💡 Secrets 값을 출력하여 확인하는 디버깅 코드
+        st.write("### 디버깅: Secrets 내용")
+        st.write(st.secrets)
+        
+        # 💡 이 부분이 오류를 일으키는지 확인
         llm_client = LLMClient(api_key=st.secrets.OPENAI_API_KEY)
+        
 
         db_client = DatabaseClient(
             data_url=st.secrets.KOR_STOCK_DATA_URL,
@@ -615,6 +620,7 @@ with st.expander("🔍 전체 분석 과정 로그 보기"):
     st.dataframe(st.session_state.db.hypotheses if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.factors if st.session_state.db else pd.DataFrame(), use_container_width=True)
     st.dataframe(st.session_state.db.evaluations if st.session_state.db else pd.DataFrame(), use_container_width=True)
+
 
 
 
