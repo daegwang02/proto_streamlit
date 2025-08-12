@@ -1,7 +1,7 @@
 # Data Handling
-pandas
-numpy
-pyarrow
+pandas==2.2.2
+numpy==1.26.4
+pyarrow==16.1.0
 fastparquet
 
 # Machine Learning
@@ -9,12 +9,11 @@ scikit-learn
 lightgbm
 
 # Bayesian Optimization
-bayesian-optimization
+bayesian-optimization==1.4.0
 
 # LLM Client
-google-generativeai
-openai
-requests
+openai==1.35.13
+requests==2.32.3
 
 # Streamlit UI
 streamlit
