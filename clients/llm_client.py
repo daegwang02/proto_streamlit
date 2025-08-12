@@ -1,29 +1,37 @@
-# clients/llm_client.py
+# clients/llm_client.py (수정된 코드)
+
 import openai
 import json
 import time
 import re
 from typing import Dict, Any, List
+import os
+import httpx # 💡 httpx 라이브러리 추가
 
 class LLMClient:
-    """
-    Google Gemini API와 상호작용하여 LLM의 기능을 활용하는 클라이언트입니다.
-    """
-    def __init__(self, api_key: str = None, **kwargs): # 💡 **kwargs 추가
+    def __init__(self, api_key: str = None):
         if api_key is None:
             api_key = os.getenv("OPENAI_API_KEY")
-
+        
         if not api_key:
             raise ValueError("OpenAI API 키가 설정되지 않았습니다. 환경 변수 'OPENAI_API_KEY'를 설정하거나 인자로 전달해주세요.")
-
-        # 💡 openai.OpenAI 인스턴스를 생성할 때 **kwargs를 전달
-        #    이렇게 하면 'proxies'와 같은 예상치 못한 인자가 있어도 오류 없이 전달됨
-        self.client = openai.OpenAI(api_key=api_key, **kwargs) 
+        
+        # 💡 httpx.Client를 사용하여 프록시 설정을 처리
+        #    Streamlit 환경 변수에서 프록시 URL을 가져와 설정
+        http_client = None
+        proxy_url = os.getenv("http_proxy") or os.getenv("https_proxy")
+        if proxy_url:
+            print(f"프록시 설정 감지: {proxy_url}")
+            http_client = httpx.Client(proxies=proxy_url)
+            
+        # 💡 openai.OpenAI 클라이언트를 초기화할 때 http_client 인자를 전달
+        self.client = openai.OpenAI(api_key=api_key, http_client=http_client)
         self.model = "gpt-4o-mini"
         self.temperature = 0.2
         self.top_p = 1.0
         self.max_tokens = 4096
     
+    # ... 나머지 코드는 변경 없음
     def _send_request(self, prompt: str, retries=5, delay=10) -> str:
         """
         주어진 프롬프트를 API에 전송하고, 재시도 로직을 포함하여 응답을 받습니다.
@@ -287,6 +295,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
