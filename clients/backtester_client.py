@@ -564,9 +564,9 @@
 
 # clients/backtester_client.py (수정 완료)
 
+# clients/backtester_client.py
+
 import pandas as pd
-import pyarrow.parquet as pq # 💡 pyarrow.parquet import 추가
-import requests
 import numpy as np
 import warnings
 import lightgbm as lgb
@@ -583,14 +583,6 @@ class BacktesterClient:
     데이터 로딩, 팩터 값 계산, 모델 학습, 성능 평가를 수행합니다.
     """
     def __init__(self, data_url: str, transaction_fee_buy: float = 0.0005, transaction_fee_sell: float = 0.0015):
-        """
-        BacktesterClient를 초기화합니다.
-        
-        Args:
-            data_url (str): 한국 주식 시장 데이터가 저장된 Parquet 파일의 URL.
-            transaction_fee_buy (float): 매수 시 발생하는 거래비용 (수수료).
-            transaction_fee_sell (float): 매도 시 발생하는 총 거래비용 (수수료+세금).
-        """
         self.data_url = data_url
         self.transaction_fee_buy = transaction_fee_buy
         self.transaction_fee_sell = transaction_fee_sell
@@ -598,10 +590,6 @@ class BacktesterClient:
         self.factor_cache = {}
 
     def _load_data(self) -> pd.DataFrame:
-        """
-        지정된 URL에서 주식 데이터를 로드하고 기본적인 전처리를 수행합니다.
-        데이터는 한 번만 로드하여 캐시에 저장합니다.
-        """
         if self.data_cache is not None:
             return self.data_cache
 
@@ -622,84 +610,54 @@ class BacktesterClient:
         df[['open', 'high', 'low', 'close', 'volume']] = df.groupby('ticker')[['open', 'high', 'low', 'close', 'volume']].ffill()
         df.dropna(inplace=True)
 
-        # df.rename(columns={'close': 'price'}, inplace=True)
-        
-        # 파생 변수(피처) 계산
+        # 💡 vwap 계산 로직 추가
+        df['vwap'] = (df['close'] * df['volume']).groupby(level='ticker').rolling(window=1).sum() / df['volume'].groupby(level='ticker').rolling(window=1).sum()
+        df['vwap'] = df['vwap'].reset_index(level=0, drop=True)
         df['daily_turnover'] = df['close'] * df['volume']
         df['adv20'] = df.groupby(level='ticker')['daily_turnover'].rolling(window=20, min_periods=1).mean().reset_index(level=0, drop=True)
-        # 필요한 다른 adv 파생 변수도 여기에 추가할 수 있습니다.
         
         self.data_cache = df
         print("데이터 로드 및 기본 전처리 완료.")
         return self.data_cache
 
     def _execute_ast(self, node: ASTNode, market_data: pd.DataFrame) -> Any:
-        """
-        AST를 재귀적으로 실행하여 팩터 값을 계산합니다.
-        """
-        # --- 베이스 케이스: 노드가 변수이거나 리터럴일 때 ---
         if isinstance(node, LiteralNode):
             return node.value
         if isinstance(node, VariableNode):
-            # 'returns'와 같은 동적 변수 처리
             if node.name == 'returns':
                 return market_data.groupby('ticker')['close'].pct_change()
             if node.name in market_data.columns:
                 return market_data[node.name]
-            # 'adv' 시리즈 같은 파생변수 처리
             if node.name.startswith('adv'):
                 try:
-                    if len(node.name) > 3:
-                            days = int(node.name[3:])
-                    else:
-                    # adv만 있는 경우 기본값을 설정하거나 오류를 명확히 함
-                            raise NameError(f"adv 변수는 윈도우 크기를 포함해야 합니다 (예: adv20).")
-                
+                    days = int(node.name[3:])
                     turnover_col = market_data['close'] * market_data['volume']
                     return turnover_col.groupby(level='ticker').rolling(window=days, min_periods=1).mean().reset_index(0, drop=True)
-                except:
+                except (ValueError, IndexError):
                     raise NameError(f"adv 파생 변수 파싱 오류: {node.name}")
             raise NameError(f"정의되지 않은 변수입니다: {node.name}")
 
-        # --- 재귀 케이스: 노드가 연산자일 때 ---
         if isinstance(node, OperatorNode):
-            # 연산자 이름을 소문자로 통일하여 딕셔너리 키와 맞춥니다.
             op_name = node.op.lower()
+            children_values = [self._execute_ast(child, market_data) for child in node.children]
 
             if op_name in op_lib.OPERATORS:
-                # 자식 노드들의 값을 재귀적으로 먼저 계산
-                children_values = [self._execute_ast(child, market_data) for child in node.children]
-
-                # 💡 수정된 방어 코드: 'window' 파라미터 위치를 정확히 체크
-                window_ops_2_args = ['ts_mean', 'ts_std', 'ts_rank', 'delay', 'delta', 'ts_min', 'ts_max', 'count', 'sum', 'median', 'skew', 'kurt', 'wma']
-                window_ops_3_args = ['correlation', 'covariance']
-                
-                window_arg = None
-                if op_name in window_ops_2_args and len(children_values) > 1:
-                    window_arg = children_values[1]
-                elif op_name in window_ops_3_args and len(children_values) > 2:
-                    window_arg = children_values[2]
-                
-                if window_arg is not None:
-                    if not isinstance(window_arg, (int, float)):
-                        raise ValueError(f"'{op_name}' 연산자의 window 값은 숫자여야 합니다. 현재 값: {window_arg}")
-                    # float가 넘어와도 안전하게 int로 변환하여 사용
-                    if isinstance(window_arg, float):
-                        children_values[children_values.index(window_arg)] = int(window_arg)
-
-                # OPERATORS 딕셔너리에서 해당 연산자 함수를 찾아 호출
-                op_function = op_lib.OPERATORS[op_name]
-                return op_function(*children_values)
-
+                # 💡 수정된 부분: operator_library의 함수들이 Series와 window 인자를 직접 처리하므로
+                #    여기에 별도의 groupby 로직을 추가하지 않고 바로 호출합니다.
+                return op_lib.OPERATORS[op_name](*children_values)
+            
             raise NameError(f"정의되지 않은 연산자입니다: {node.op}")
         
         raise TypeError(f"처리할 수 없는 노드 타입입니다: {type(node)}")
-
 
     def calculate_factor_values(self, formula: str, ast: ASTNode) -> pd.Series:
         if formula in self.factor_cache: return self.factor_cache[formula]
         market_data = self._load_data()
         factor_values = self._execute_ast(ast, market_data)
+        
+        if not isinstance(factor_values, pd.Series):
+             raise TypeError("팩터 계산 결과는 pandas Series여야 합니다.")
+
         factor_values = factor_values.reindex(market_data.index).sort_index()
         factor_values.replace([np.inf, -np.inf], np.nan, inplace=True)
         factor_values = factor_values.groupby(level='ticker').ffill().bfill()
@@ -714,6 +672,7 @@ class BacktesterClient:
         vol_mean_20 = market_data.groupby('ticker')['volume'].rolling(20).mean().reset_index(level=0, drop=True)
         base_features['vol_ratio_20'] = market_data['volume'] / vol_mean_20
         base_features['range_norm'] = (market_data['high'] - market_data['low']) / market_data['close']
+        
         X = pd.concat([base_features, new_factor.rename('new_factor')], axis=1)
         y = market_data.groupby('ticker')['close'].pct_change().shift(-1)
         y.name = 'target'
@@ -727,6 +686,7 @@ class BacktesterClient:
         daily_ic = df.groupby(level='date').apply(lambda x: x['pred'].corr(x['actual']))
         return daily_ic
     
+    # 💡 run_full_backtest 메서드의 시그니처를 변경하고, 내부에서 calculate_factor_values를 호출하도록 수정
     def run_full_backtest(self, formula: str, ast: ASTNode) -> Dict[str, Any]:
         """
         전체 백테스팅 파이프라인을 실행합니다.
@@ -773,7 +733,7 @@ class BacktesterClient:
         print("최종 성과 지표를 산출합니다...")
         daily_ic = self._calculate_ic(predictions, y_test)
         ic_mean = daily_ic.mean()
-        icir = daily_ic.mean() / daily_ic.std()
+        icir = daily_ic.mean() / daily_ic.std() if daily_ic.std() > 0 else 0.0
 
         daily_rank_ic = self._calculate_ic(predictions, y_test, rank=True)
         rank_ic_mean = daily_rank_ic.mean()
@@ -799,6 +759,7 @@ class BacktesterClient:
         
         print("백테스팅 완료.")
         return results
+
 
 
 
