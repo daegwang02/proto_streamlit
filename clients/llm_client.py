@@ -14,15 +14,18 @@ class LLMClient:
             api_key = os.getenv("OPENAI_API_KEY")
         
         if not api_key:
-            raise ValueError("OpenAI API key not set. Please set the 'OPENAI_API_KEY' environment variable or pass it as an argument.")
-
-        # 💡 Critical Fix: Intercept and remove the 'proxies' argument.
-        # This is the most robust way to prevent the 'unexpected keyword argument' error
-        # when an environment automatically injects this setting.
+            raise ValueError("OpenAI API 키가 설정되지 않았습니다. 환경 변수 'OPENAI_API_KEY'를 설정하거나 인자로 전달해주세요.")
+        
+        # 💡 가장 강력한 해결책: kwargs에서 'proxies' 인자를 명시적으로 제거.
+        #    환경에서 자동으로 주입하더라도 오류를 막을 수 있습니다.
         proxies = kwargs.pop('proxies', None)
-        http_client = httpx.Client(proxies=proxies) if proxies else None
+        http_client = None
+        if proxies:
+            print(f"프록시 설정 감지: {proxies}")
+            http_client = httpx.Client(proxies=proxies)
 
-        # 💡 Pass the filtered arguments to the OpenAI client.
+        # 💡 필터링된 kwargs를 OpenAI 클라이언트에 전달.
+        #    http_client 인자는 별도로 전달합니다.
         self.client = openai.OpenAI(api_key=api_key, http_client=http_client, **kwargs)
         self.model = "gpt-4o-mini"
         self.temperature = 0.2
@@ -293,6 +296,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
