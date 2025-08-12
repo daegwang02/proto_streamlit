@@ -9,23 +9,21 @@ import os
 import httpx  # 💡 Add httpx library
 
 class LLMClient:
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str = None, **kwargs):
         if api_key is None:
             api_key = os.getenv("OPENAI_API_KEY")
         
         if not api_key:
             raise ValueError("OpenAI API key not set. Please set the 'OPENAI_API_KEY' environment variable or pass it as an argument.")
-        
-        # 💡 Use httpx.Client to handle proxy settings
-        #    Fetch proxy URL from environment variables
-        http_client = None
-        proxy_url = os.getenv("http_proxy") or os.getenv("https_proxy")
-        if proxy_url:
-            print(f"Proxy setting detected: {proxy_url}")
-            http_client = httpx.Client(proxies=proxy_url)
-            
-        # 💡 Pass the httpx client instance to openai.OpenAI
-        self.client = openai.OpenAI(api_key=api_key, http_client=http_client)
+
+        # 💡 Critical Fix: Intercept and remove the 'proxies' argument.
+        # This is the most robust way to prevent the 'unexpected keyword argument' error
+        # when an environment automatically injects this setting.
+        proxies = kwargs.pop('proxies', None)
+        http_client = httpx.Client(proxies=proxies) if proxies else None
+
+        # 💡 Pass the filtered arguments to the OpenAI client.
+        self.client = openai.OpenAI(api_key=api_key, http_client=http_client, **kwargs)
         self.model = "gpt-4o-mini"
         self.temperature = 0.2
         self.top_p = 1.0
@@ -295,6 +293,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
