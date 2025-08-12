@@ -9,25 +9,18 @@ import os
 import httpx  # 💡 Add httpx library
 
 class LLMClient:
-    def __init__(self, api_key: str = None, **kwargs):
-        if api_key is None:
-            api_key = os.getenv("OPENAI_API_KEY")
+   def __init__(self, api_key: str):
+        """
+        LLM 클라이언트를 초기화하고 API를 설정합니다.
         
-        if not api_key:
-            raise ValueError("OpenAI API 키가 설정되지 않았습니다. 환경 변수 'OPENAI_API_KEY'를 설정하거나 인자로 전달해주세요.")
-        
-        # 💡 가장 강력한 해결책: kwargs에서 'proxies' 인자를 명시적으로 제거.
-        #    환경에서 자동으로 주입하더라도 오류를 막을 수 있습니다.
-        proxies = kwargs.pop('proxies', None)
-        http_client = None
-        if proxies:
-            print(f"프록시 설정 감지: {proxies}")
-            http_client = httpx.Client(proxies=proxies)
-
-        # 💡 필터링된 kwargs를 OpenAI 클라이언트에 전달.
-        #    http_client 인자는 별도로 전달합니다.
-        self.client = openai.OpenAI(api_key=api_key, http_client=http_client, **kwargs)
-        self.model = "gpt-4o-mini"
+        Args:
+            api_key (str): OpenAI에서 발급받은 API 키입니다.
+        """
+        if not api_key or api_key.strip() == "" or not api_key.startswith("sk-"):
+            raise ValueError("OpenAI API 키가 잘못되었거나 설정되지 않았습니다.")
+            
+        self.client = openai.OpenAI(api_key=api_key)
+        self.model = "gpt-4o-mini" # 모델명을 원하는 대로 설정할 수 있습니다
         self.temperature = 0.2
         self.top_p = 1.0
         self.max_tokens = 4096
@@ -296,6 +289,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
