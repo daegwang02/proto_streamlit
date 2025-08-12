@@ -6,7 +6,7 @@ import time
 import re
 from typing import Dict, Any, List
 import os
-import httpx # 💡 httpx 라이브러리 추가
+import httpx  # 💡 Add httpx library
 
 class LLMClient:
     def __init__(self, api_key: str = None):
@@ -14,17 +14,17 @@ class LLMClient:
             api_key = os.getenv("OPENAI_API_KEY")
         
         if not api_key:
-            raise ValueError("OpenAI API 키가 설정되지 않았습니다. 환경 변수 'OPENAI_API_KEY'를 설정하거나 인자로 전달해주세요.")
+            raise ValueError("OpenAI API key not set. Please set the 'OPENAI_API_KEY' environment variable or pass it as an argument.")
         
-        # 💡 httpx.Client를 사용하여 프록시 설정을 처리
-        #    Streamlit 환경 변수에서 프록시 URL을 가져와 설정
+        # 💡 Use httpx.Client to handle proxy settings
+        #    Fetch proxy URL from environment variables
         http_client = None
         proxy_url = os.getenv("http_proxy") or os.getenv("https_proxy")
         if proxy_url:
-            print(f"프록시 설정 감지: {proxy_url}")
+            print(f"Proxy setting detected: {proxy_url}")
             http_client = httpx.Client(proxies=proxy_url)
             
-        # 💡 openai.OpenAI 클라이언트를 초기화할 때 http_client 인자를 전달
+        # 💡 Pass the httpx client instance to openai.OpenAI
         self.client = openai.OpenAI(api_key=api_key, http_client=http_client)
         self.model = "gpt-4o-mini"
         self.temperature = 0.2
@@ -295,6 +295,7 @@ class LLMClient:
         (본 리포트가 투자자에게 제안하는 구체적인 행동 지침(Actionable Advice)을 요약하여 2-3가지 항목으로 작성하세요.)
         """
         return self._send_request(prompt)
+
 
 
 
